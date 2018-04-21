@@ -1,5 +1,6 @@
 import struct
 import os
+from utils import *
 
 class IndexStorage:
     encoding = 'utf8'
@@ -39,6 +40,10 @@ class IndexStorage:
     @classmethod
     def _int_struct(cls):
         return struct.Struct(cls.int_format)
+
+    @classmethod
+    def _len_struct(cls):
+        return struct.Struct(cls.len_format)
 
     @classmethod
     def str2byte(cls, s):
@@ -94,7 +99,11 @@ class IndexStorage:
 
     @classmethod
     def byte2int(cls, b):
-        return cls._int_struct().unpack(i)
+        return cls._int_struct().unpack(b[:cls.int_size])
+
+    @classmethod
+    def byte2len(cls, b):
+        return cls._len_struct().unpack(b[:cls.len_size])
 
     @classmethod
     def test(cls):
@@ -111,15 +120,18 @@ class IndexStorage:
             raise Exception("[IndexStrorage] List coding-encoding error.")
 
 class Index:
-
     def _index_name(self):
         return 'index_{}'.format(self.current_idx)
 
-    def _header_file(self):
-        return os.path.join(self.dir, '{}.ih'.format(self._index_name()))
+    def _header_file(self, fname=None):
+        if not fname:
+            return os.path.join(self.dir, '{}.ih'.format(self._index_name()))
+        return '{}.ih'.format(fname)
 
-    def _index_file(self):
-        return os.path.join(self.dir, '{}.id'.format(self._index_name()))
+    def _index_file(self, fname=None):
+        if not fname:
+            return os.path.join(self.dir, '{}.id'.format(self._index_name()))
+        return '{}.id'.format(fname)
 
     def __init__(self, storage, dir='', threshold=1000*1000):
         self.storage = storage
@@ -172,7 +184,6 @@ class Index:
         self.term_size = 0
         self.list_len = 0
 
-
     def add_doc(self, doc_id, term_set):
         doc_id = int(doc_id)
 
@@ -186,44 +197,123 @@ class Index:
         if len(self) > self.threshold:
             self.write_index()
             self.forget()
-            
+        
+    def _read_header(self, fname):
+        header = []
+        with open(self._header_file(fname=fname), 'br') as f:
+            n = f.read(self.storage.int_size)
+            n = self.storage.byte2int(n)[0]
+            for i in range(n):
+                header.append(self.storage.byte2int(f.read(self.storage.int_size))[0])
+
+        return header
+
+    def _read_term(self, f, p):
+        f.seek(p, 0)
+        lb = f.read(self.storage.len_size)
+        l = self.storage.byte2len(lb)[0]
+
+        strb = lb + f.read(l)
+        return self.storage.byte2str(strb)
+
+    def _read_list(self, f, p):
+        f.seek(p, 0)
+        lb = f.read(self.storage.len_size)
+        l = self.storage.byte2len(lb)[0]
+
+        lstb = lb + f.read(l * self.storage.int_size)
+        return self.storage.byte2lst(lstb)
 
 
+    def _merge(self, fname1, fname2, outfname):
+        ''' Merge 2 indexes in files <fname1> and <fname2> to one file <outfname>'''
 
 
+        h = [self._read_header(fname1), self._read_header(fname2)]
+        hout = []
+
+        n = [len(h[0]), len(h[1])]
+        pos = [0, 0]
+        p = [0, 0]
+        term = ['', '']
+
+        with open(self._index_file(fname=fname1), 'br') as f1, \
+             open(self._index_file(fname=fname2), 'br') as f2, \
+             open(self._index_file(fname=outfname), 'bw') as fout:
+
+            f = [f1, f2]
+
+            def read_term(a):
+                term[a] = self._read_term(f[a], h[a][pos[a]])
+                p[a] = f[a].tell() 
+                pos[a] += 1
+
+            read_term(0)
+            read_term(1)
+
+            while pos[0] < n[0] or pos[1] < n[1]:
+                if pos[0] < n[0] and pos[1] < n[1]:
+                    if term[0] == term[1]:
+                        l1 = self._read_list(f[0], p[0])
+                        l2 = self._read_list(f[1], p[1])
+                        lo = set(l1) | set(l2)
+                        termo = term[0]
+                        read_term(0)
+                        read_term(1)
+                    else:
+                        if term[0] < term[1]:
+                            cur = 0
+                        else:
+                            cur = 1
+
+                        lo = self._read_list(f[cur], p[cur])
+                        termo = term[cur]
+                        read_term(cur)
+                else:
+                    if pos[0] >= n[0]:
+                        cur = 1
+                    else:
+                        cur = 0
+
+                    lo = self._read_list(f[cur], p[cur])
+                    termo = term[cur]
+                    read_term(cur)
 
 
+                hout.append(fout.tell())
+                fout.write(self.storage.str2byte(termo))
+                fout.write(self.storage.lst2byte(lo))
 
+        with open(self._header_file(fname=outfname), 'bw') as f:
+            f.write(self.storage.lst2byte(hout))  
+        
+        log("Merged {} and {} to {}".format(fname1, fname2, outfname))
+        return
 
+    def merge(self, outfname, tmp_file):
+        if len(self.indexes) == 0:
+            raise Exceprion("Nothing to merge")
+        if len(self.indexes) == 1:
+            os.rename(self.indexes[0], outfname)
+            return 
 
+        self._merge(self.indexes[0], self.indexes[1], outfname)
 
+        fls = [outfname, tmp_file]
 
+        for i in range(2, len(self.indexes)):
+            self._merge(fls[0], self.indexes[i], fls[1])
+            fls = fls[::-1]
 
+        if fls[1] != outfname:
+            os.rename(tmp_file, outfname)
 
+        try:
+            os.remove(self._index_file(fname=tmp_file))
+            os.remove(self._header_file(fname=tmp_file))
+        except:
+            pass
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+        return
 
 IndexStorage.test()
