@@ -1,4 +1,6 @@
 import time
+import requests
+from json import loads
 
 MEMORY_BASE = 1000
 MEMORY_NAMES = ['', 'K', 'M', 'G', 'T', 'E']
@@ -31,3 +33,18 @@ def get_ts():
 def log(*args, **kwargs):
     s = '[{ts}]'.format(ts=get_ts())
     print(s, *args, **kwargs)
+
+
+def get_page_url(page_id):
+    url_template = 'https://en.wikipedia.org/w/api.php?action=query&prop=info&pageids={}&inprop=url'
+    headers = {
+        'format':'json',
+    }
+    url = url_template.format(page_id)
+    resp = requests.get(url, headers)
+    data = loads(resp.text)
+    try:
+        return data['query']['pages'][str(page_id)]['fullurl']
+    except:
+        raise Exception("Cannot get page link")
+
