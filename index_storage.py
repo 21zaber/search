@@ -1,5 +1,7 @@
 import struct
 import os
+import shutil
+from copy import deepcopy
 from utils import *
 
 class IndexStorage:
@@ -282,7 +284,7 @@ class Index:
 
                 hout.append(fout.tell())
                 fout.write(self.storage.str2byte(termo))
-                fout.write(self.storage.lst2byte(lo))
+                fout.write(self.storage.lst2byte(list(lo)))
 
         with open(self._header_file(fname=outfname), 'bw') as f:
             f.write(self.storage.lst2byte(hout))  
@@ -290,12 +292,65 @@ class Index:
         log("Merged {} and {} to {}".format(fname1, fname2, outfname))
         return
 
-    def merge(self, outfname, tmp_file):
+    def merge(self, outfname, tmp_dir):
         if len(self.indexes) == 0:
             raise Exceprion("Nothing to merge")
         if len(self.indexes) == 1:
             os.rename(self.indexes[0], outfname)
             return 
+
+        self.indexes = list(self.indexes)
+        self.indexes.sort()
+
+        try:
+            os.makedirs(tmp_dir)
+        except:
+            print("Temporary dir({}) exist".format(tmp_dir))
+
+        indexes = []
+        for i in self.indexes:
+            fn = self._index_file(fname=i)
+            tfn = os.path.join(tmp_dir, fn.rsplit('/')[-1])
+            shutil.copyfile(fn, tfn)
+            shutil.copyfile(fn[:-1]+'h', tfn[:-1]+'h')
+            log('Copy {} to {}'.format(fn, tfn))
+            log('Copy {} to {}'.format(fn[:-1]+'h', tfn[:-1]+'h'))
+
+            indexes.append(tfn[:-3])
+
+        cur_idx = 0
+        get_idx_name = lambda x: os.path.join(tmp_dir, 'tindex_{}'.format(cur_idx))
+
+        while len(indexes) > 1:
+            new_indexes = []
+
+           #i,l,s = -2, len(indexes), 2
+           #while i < l:
+           #    i+=2
+            for i in range(0, len(indexes)-1, 2):
+                nfn = get_idx_name(cur_idx)
+                cur_idx += 1
+
+                self._merge(indexes[i], indexes[i+1], nfn)
+                new_indexes.append(nfn)
+                os.remove(self._index_file(fname=indexes[i]))
+                os.remove(self._header_file(fname=indexes[i]))
+                os.remove(self._index_file(fname=indexes[i+1]))
+                os.remove(self._header_file(fname=indexes[i+1]))
+
+            if len(indexes) % 2 == 1:
+                new_indexes.append(indexes[-1])
+
+            indexes = deepcopy(new_indexes)
+            log(indexes)
+
+        os.rename(self._index_file(fname=indexes[0]), self._index_file(outfname))
+        os.rename(self._header_file(fname=indexes[0]), self._header_file(outfname))
+
+        shutil.rmtree(tmp_dir)
+        return 
+
+
 
         self._merge(self.indexes[0], self.indexes[1], outfname)
 
