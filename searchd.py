@@ -1,4 +1,3 @@
-from index_storage import Index
 from utils import log
 import re
 import time
@@ -169,16 +168,3 @@ def process_query(s, index, header, fname):
         return stack[0]._ids
     else:
         raise Exception()
-
-def search(index_storage_cls, header, fname, query):
-    index = Index(index_storage_cls)
-   #ts = time.time()
-   #h = index._read_header(fname)
-   #log("Header read finished, {} sec".format(time.time() - ts))
-    s = parse_query(query)
-    resp = process_query(s, index, header, fname)
-    return resp
-
-
-
-

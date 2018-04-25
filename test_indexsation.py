@@ -4,7 +4,7 @@ from pprint import pprint
 from collections import defaultdict as DD
 from index_storage import IndexStorage, Index
 from time import gmtime, strftime, time as ctime
-from utils import format_memory, format_time 
+from utils import format_memory, format_time, log
 
 def obj_gen():
     req = DB().select(chunks=10000, limit=100000)
@@ -14,7 +14,7 @@ def obj_gen():
             break
         yield dict(obj)
 
-index = Index(IndexStorage, dir='../data_test', threshold=2*1*1000*1000)
+index = Index(IndexStorage, dir='../data', threshold=1*10*1000*1000)
 
 start_ts = ctime()
 total_len = 0

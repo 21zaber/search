@@ -3,6 +3,7 @@ import os
 import shutil
 from copy import deepcopy
 from utils import *
+from searchd import *
 
 class IndexStorage:
     encoding = 'utf8'
@@ -140,6 +141,7 @@ class Index:
         self.dir = dir
         self.current_idx = 0
         self.indexes = []
+        self.headers = {}
         self.index = {}
         self.term_size = 0
         self.list_len = 0
@@ -147,11 +149,25 @@ class Index:
 
         self.forget()
 
+    def set_index_list(self, indexes):
+        self.indexes = indexes
+
+    def update_index_list(self):
+        files = os.listdir(self.dir)
+        files = {i[:-3] for i in files if i.endswith('.id')}
+        self.indexes = [os.path.join(self.dir, f) for f in files]
+        log("Index list updated: {}".format(', '.join(self.indexes)))
+
+    def read_headers(self):
+        for idx in self.indexes:
+            log("Read header {}".format(idx))
+            self.headers[idx] = self._read_header(idx)
+
     def __len__(self):
         return self.storage.int_size * len(self.index) + self.term_size + self.list_len * self.storage.int_size
 
     def write_index(self):
-        with open(self._index_file(), 'w+b') as index_file, open(self._header_file(), 'w+b') as header_file:
+        with open(self._index_file(), 'w+b') as index_file:#, open(self._header_file(), 'w+b') as header_file:
             st = self.storage
             idx = [(k, self.index[k]) for k in self.index]
             idx.sort(key=lambda x: x[0])
@@ -161,7 +177,7 @@ class Index:
                 header_file.write(b)
 
             term_count = len(self.index)
-            wh(st.int2byte(term_count))
+            header = []
 
             hsz, isz = 0, 0
 
@@ -169,9 +185,10 @@ class Index:
                 term, lst = i
                 position = index_file.tell()
 
-                wh(st.int2byte(position))
+                header.append(position)
                 wi(st.str2byte(term))
                 wi(st.lst2byte(lst))
+        self._write_header(header, os.path.join(self.dir, self._index_name()))
 
         log("Index stored in {}".format(self._index_file()))
 
@@ -389,5 +406,15 @@ class Index:
             pass
 
         return
+
+    def search(self, query):
+        s = parse_query(query)
+        res = set()
+
+        for idx in self.indexes:
+            r = process_query(s, self, self.headers[idx], idx)
+            res |= r
+
+        return res
 
 IndexStorage.test()

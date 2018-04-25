@@ -9,16 +9,20 @@ import copy
 
 from wikidb import DB
 from index_storage import IndexStorage, Index
-from searchd import *
-from utils import get_page_url, rand_str 
+from utils import get_page_url, rand_str, log 
 
-INDEX_FILE = '../data/index_full'
 PAGE_SIZE = 10
+ROOT_DIR = '../data'
+
+log("DB initialization")
 db = DB()
 
-index = Index(IndexStorage)
-header = index._read_header(INDEX_FILE)
+log("Index initialization, base directory {}".format(ROOT_DIR))
+index = Index(IndexStorage, dir=ROOT_DIR)
+index.update_index_list()
+index.read_headers()
 
+log("API initialization")
 APP = Flask(__name__)
 CORS(APP)
 
@@ -42,7 +46,7 @@ def api_search():
     query = data.get('query', '')
 
     ts = time.time()
-    doc_ids = list(search(IndexStorage, header, INDEX_FILE, query))
+    doc_ids = list(index.search(query))
     ts = time.time() - ts
 
     page_n = len(doc_ids) / PAGE_SIZE
