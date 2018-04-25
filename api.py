@@ -29,12 +29,14 @@ def get_doc_descr(doc_id):
 
     return resp
 
-@APP.route('/search/', methods=['POST'])
-def api_search():
-    data = request.json
+@APP.route('/search/<query>/<page>', methods=['GET'])
+def api_search(query, page):
+    #data = request.json
+    print(query, page)
+    page = int(page)
 
-    query = data.get('query', '')
-    page = data.get('page', 0)
+#   query = data.get('query', '')
+#   page = data.get('page', 0)
 
     ts = time.time()
     doc_ids = list(search(IndexStorage, INDEX_FILE, query))
@@ -62,7 +64,9 @@ def api_search():
         'time': ts,
     }
 
-    return dumps(resp)
+    from pprint import pprint
+    pprint(resp)
+    return dumps(resp)+'\n'
 
 if __name__ == '__main__':
     APP.run(host='192.168.77.40')
