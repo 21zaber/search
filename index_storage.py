@@ -161,7 +161,6 @@ class Index:
                 header_file.write(b)
 
             term_count = len(self.index)
-            print('term_count:', term_count)
             wh(st.int2byte(term_count))
 
             hsz, isz = 0, 0
@@ -174,7 +173,7 @@ class Index:
                 wi(st.str2byte(term))
                 wi(st.lst2byte(lst))
 
-        print("Index stored in {}".format(self._index_file()))
+        log("Index stored in {}".format(self._index_file()))
 
     def forget(self):
         self.indexes.append(self._index_name())
@@ -200,7 +199,7 @@ class Index:
             self.write_index()
             self.forget()
         
-    def _read_header(self, fname):
+    def _read_header_old(self, fname):
         header = []
         with open(self._header_file(fname=fname), 'br') as f:
             n = f.read(self.storage.int_size)
@@ -209,6 +208,27 @@ class Index:
                 header.append(self.storage.byte2int(f.read(self.storage.int_size))[0])
 
         return header
+
+    def _read_header(self, fname):
+        header = []
+        with open(self._header_file(fname=fname), 'br') as f:
+            n = f.read(self.storage.int_size)
+            n = self.storage.byte2int(n)[0]
+            for i in range(n):
+                header.append(self.storage.byte2int(f.read(self.storage.int_size))[0])
+                if i > 0:
+                    header[-1] += header[-2]
+
+        return header
+
+    def _write_header(self, header, fname):
+        data = [header[0]]
+
+        for i in range(1, len(header)):
+            data.append(header[i]-header[i-1])
+
+        with open(self._header_file(fname=fname), 'bw') as f:
+            f.write(self.storage.lst2byte(data))  
 
     def _read_term(self, f, p):
         f.seek(p, 0)
@@ -286,8 +306,7 @@ class Index:
                 fout.write(self.storage.str2byte(termo))
                 fout.write(self.storage.lst2byte(list(lo)))
 
-        with open(self._header_file(fname=outfname), 'bw') as f:
-            f.write(self.storage.lst2byte(hout))  
+        self._write_header(hout, outfname)
         
         log("Merged {} and {} to {}".format(fname1, fname2, outfname))
         return
@@ -305,7 +324,7 @@ class Index:
         try:
             os.makedirs(tmp_dir)
         except:
-            print("Temporary dir({}) exist".format(tmp_dir))
+            log("Temporary dir({}) exist".format(tmp_dir))
 
         indexes = []
         for i in self.indexes:

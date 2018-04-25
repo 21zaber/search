@@ -143,7 +143,6 @@ class Res:
 
 def process_query(s, index, header, fname):
     stack = []
-    print(s)
 
     ops = {'!', '&', '|'}
 

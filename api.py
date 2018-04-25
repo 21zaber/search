@@ -12,7 +12,7 @@ from index_storage import IndexStorage, Index
 from searchd import *
 from utils import get_page_url, rand_str 
 
-INDEX_FILE = '../data/index_tmp/tindex_20'
+INDEX_FILE = '../data/index_full'
 PAGE_SIZE = 10
 db = DB()
 
