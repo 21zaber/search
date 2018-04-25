@@ -1,6 +1,7 @@
 from index_storage import Index
 from utils import log
 import re
+import time
 
 def _prepare_word(query):
     return query.lower()
@@ -8,6 +9,7 @@ def _prepare_word(query):
 def search_in_index(index, header, fname, query):
     query = _prepare_word(query)
     log('Search for "{}" in {}'.format(query, fname))
+    ts = time.time()
 
     with open(index._index_file(fname=fname), 'br') as idx:
 
@@ -28,14 +30,18 @@ def search_in_index(index, header, fname, query):
             term = read_term(m)
 
         if l > r:
-            return []
+            res = []
         else:
-            return index._read_list(idx, idx.tell())
+            res = index._read_list(idx, idx.tell())
 
+    ts = time.time() - ts
+    log("Search finished, {} results, {} sec.".format(len(res), ts))
+
+    return res
                                                                                            
 def parse_query(s):
-    re_to_space = re.compile("[,^&\\\\\']")
-    re_to_nothing = re.compile("[\-*<>=+]")
+    re_to_space = re.compile("[-,^&\\\\\']")
+    re_to_nothing = re.compile("[\*<>=+]")
 
     def letter(c, debug=False):                                                                            
         return ((c >= 'a' and c <= 'z') or (c >= 'A' and c <= 'Z') or (c >= '0' and c <= '9'))
@@ -63,7 +69,7 @@ def parse_query(s):
             return stack, p
         
         if s[0] == '!':
-            rstack, rp = query(s[1:], debug=debug)
+            rstack, rp = query(s[1:], debug=debug, stop=True)
             stack, p = rstack + ['!'], rp+1
         elif s[0] == '(':
             rstack, rp = query(s[1:], debug=debug)
@@ -104,23 +110,50 @@ def parse_query(s):
                                     
     s = re.sub(re_to_space, ' ', s) 
     s = re.sub(re_to_nothing, '', s)
+
     stack, _ = query(s)             
 
     return stack
 
+class Res:
+    def __init__(self, ids, n=False):
+        self._ids = set(ids)
+        self.n = n
+
+    def __or__(a, b):
+        if a.n == b.n:
+            return type(a)(a._ids | b._ids, n=a.n)
+
+        if a.n:
+            return type(b)(b._ids - a._ids)
+        return type(a)(a._ids - b._ids)
+
+    def __and__(a, b):
+        if a.n == b.n:
+            return type(a)(a._ids & b._ids, n=a.n)
+
+        if a.n:
+            return type(b)(b._ids - a._ids)
+        return type(a)(a._ids - b._ids)
+
+    def __neg__(a):
+        return Res(a._ids, n= not a.n)
+
+
+
 def process_query(s, index, header, fname):
     stack = []
+    print(s)
 
     ops = {'!', '&', '|'}
 
     for i in s:
         if i not in ops:
-            stack.append(set(search_in_index(index, header, fname, i)))
+            stack.append(Res(search_in_index(index, header, fname, i)))
             continue
 
         if i == '!':
-            stack[-2] -= stack[-1]
-            del stack[-1]
+            stack[-1] = -stack[-1]
             continue
         
         if i == '|':
@@ -134,15 +167,17 @@ def process_query(s, index, header, fname):
             continue
 
     if len(stack) == 1:
-        return stack[0]
+        return stack[0]._ids
     else:
         raise Exception()
 
-def search(index_storage_cls, fname, query):
+def search(index_storage_cls, header, fname, query):
     index = Index(index_storage_cls)
-    h = index._read_header(fname)
+   #ts = time.time()
+   #h = index._read_header(fname)
+   #log("Header read finished, {} sec".format(time.time() - ts))
     s = parse_query(query)
-    resp = process_query(s, index, h, fname)
+    resp = process_query(s, index, header, fname)
     return resp
 
 

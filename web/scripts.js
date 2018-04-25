@@ -3,7 +3,7 @@
     var lbutton = document.getElementById('left');
     var rbutton = document.getElementById('right');
     var list = document.getElementById('result-list');
-
+    var search_id = "";
 
     function add_res(number, data) {
         console.log(data);
@@ -14,27 +14,50 @@
                 "<li class ='elem' ><a class='result' href='" + url + "'> " + title + "</li>");
     }
 
-    function search(query, pg){
+    function get_results(search_id, pg){
         $.ajax({
-            url: "http://192.168.77.40:5000/search/" + query + "/" + pg, 
+            url: "http://192.168.77.40:5000/get_results/"+search_id + '/' + pg, 
             type: 'GET',
             crossDomain: true,
             dataType: 'json',
-            contentType: "application/json",
-            success: function(data) { 
+            //contentType: "application/json",
+            success: function(data) {
                 var docs = data.docs;
+                while (list.hasChildNodes()) list.removeChild(list.childNodes[0]);
                 $.each(docs, add_res);
-
+                
                 input.dataset.mxpage = data.page_number;
             },
             error: function() { alert('Failed to load results!'); },
         });
+
+    }
+
+    function search(query){
+        var json = {
+            query: query,
+        }
+        input.dataset.page = 0;
+        console.log(JSON.stringify(json));
+
+        $.ajax({
+            url: "http://192.168.77.40:5000/search/", 
+            type: 'POST',
+            crossDomain: true,
+            contentType: "application/json",
+            success: function(data) {
+                get_results(data, 0);
+                search_id = data;                    
+            },
+            error: function() { alert('Failed to send search request!'); },
+            data: JSON.stringify(json)
+        });
+
     }
 
     function update(){
         if (input.dataset.query == "") {return}
-        while (list.hasChildNodes()) list.removeChild(list.childNodes[0]);
-        search(input.dataset.query, input.dataset.page);
+        search(input.dataset.query);
     }
 
 	lbutton.addEventListener('click', function(e) {
@@ -43,7 +66,7 @@
             return;
         }
         input.dataset.page = n - 1;
-        update();
+        get_results(search_id, input.dataset.page);
 	});
 
 	rbutton.addEventListener('click', function(e) {
@@ -53,7 +76,7 @@
             return;
         }
         input.dataset.page = n + 1;
-        update();
+        get_results(search_id, input.dataset.page);
 	});
 
 	input.addEventListener('keydown', function(e) {
