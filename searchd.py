@@ -28,10 +28,12 @@ def search_in_index(index, header, fname, query):
             m = int((l+r) / 2)
             term = read_term(m)
 
+        log("Block found for {} sec".format(time.time() - ts))
+
         if l > r:
             res = []
         else:
-            res = index._read_list(idx, idx.tell())
+            res = index._read_block(idx, idx.tell())
 
     ts = time.time() - ts
     log("Search finished, {} results, {} sec.".format(len(res), ts))
@@ -134,7 +136,7 @@ class Res:
         data = {}
         for i in doc_ids:
             if i in a and i in b:
-                data[i] = list(set(a[i])) | set(b[i])))
+                data[i] = list(set(a[i]) | set(b[i]))
             elif i in a:
                 data[i] = a[i]
             else:
@@ -158,16 +160,16 @@ class Res:
             return type(a)(type(a)._or(a.data, b.data), n=a.n)
 
         if a.n:
-            return type(b)(type(b)._sub(b.data, a.data)
-        return type(a)(type(a)._sub(a.data, b.data)
+            return type(b)(type(b)._sub(b.data, a.data))
+        return type(a)(type(a)._sub(a.data, b.data))
 
     def __and__(a, b):
         if a.n == b.n:
             return type(a)(type(a)._and(a.data, b.data), n=a.n)
 
         if a.n:
-            return type(b)(type(b)._sub(b.data, a.data)
-        return type(a)(type(a)._sub(a.data, b.data)
+            return type(b)(type(b)._sub(b.data, a.data))
+        return type(a)(type(a)._sub(a.data, b.data))
 
     def __neg__(a):
         return type(a)(a.data, n= not a.n)
@@ -199,6 +201,6 @@ def process_query(s, index, header, fname):
             continue
 
     if len(stack) == 1:
-        return stack[0]._ids
+        return set(stack[0].data.keys())
     else:
         raise Exception()

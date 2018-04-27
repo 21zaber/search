@@ -48,7 +48,8 @@ def get_page_url(page_id):
     try:
         return data['query']['pages'][str(page_id)]['fullurl']
     except:
-        raise Exception("Cannot get page link")
+        log("ERROR: Cannot get page link, page id '{}'".format(page_id))
+        return ''
 
 def rand_str(n):                                                                           
     return ''.join([random.choice(string.ascii_letters + string.digits) for i in range(n)])

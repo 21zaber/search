@@ -124,7 +124,7 @@ class IndexStorage:
 
 class Index:
     def _index_name(self):
-        return 'index_{}'.format(self.current_idx)
+        return 'index_{}'.format(str(self.current_idx).rjust(3, '0'))
 
     def _header_file(self, fname=None):
         if not fname:
@@ -140,6 +140,7 @@ class Index:
         self.storage = storage
         self.dir = dir
         self.current_idx = 0
+        self.headers = {}
         self.indexes = []
         self.index = {}
 
@@ -183,9 +184,11 @@ class Index:
             hsz, isz = 0, 0
 
             for i in idx:
+                term, block = i
                 position = index_file.tell()
                 header.append(position)
-                self._write(index_file, idx[i])
+                self._write_term(index_file, term)
+                self._write_block(index_file, block)
 
         self._write_header(header, os.path.join(self.dir, self._index_name()))
 
@@ -202,10 +205,10 @@ class Index:
         self.entr_cnt = 0
         self.doc_cnt = 0
 
-    def add_doc(self, doc_id, term_set):
+    def add_doc(self, doc_id, term_dict):
         doc_id = int(doc_id)
 
-        for term in term_set:
+        for term in term_dict:
             if term not in self.index:
                 self.index[term] = {}
                 self.term_size += len(term)
@@ -247,6 +250,9 @@ class Index:
         strb = lb + f.read(l)
         return self.storage.byte2str(strb)
 
+    def _write_term(self, f, term):
+        f.write(self.storage.str2byte(term))
+
     def _read_list(self, f, p):
         f.seek(p, 0)
         lb = f.read(self.storage.len_size)
@@ -262,9 +268,9 @@ class Index:
         lb = f.read(self.storage.int_size)
         l = self.storage.byte2int(lb)[0]
 
-        for i in range(len(l)):
+        for i in range(l):
             docb = f.read(self.storage.int_size) 
-            doc = self.storage.byte2int(docb)
+            doc = self.storage.byte2int(docb)[0]
 
             block[doc] = self._read_list(f, f.tell())
 

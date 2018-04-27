@@ -1,11 +1,29 @@
-from index_storage import IndexStorage, Index
-from searchd import *
-import os
+#!/usr/bin/python3.5
 
-fout = 'data/index_full'
+from flask import Flask, request
+from flask_cors import CORS
+from json import dumps, loads
+from os import makedirs
+import time
+import copy
+
+from wikidb import DB
+from index_storage import IndexStorage, Index
+from utils import get_page_url, rand_str, log 
+
+PAGE_SIZE = 10
+ROOT_DIR = '../data'
+
+log("DB initialization")
+db = DB()
+
+log("Index initialization, base directory {}".format(ROOT_DIR))
+index = Index(IndexStorage, dir=ROOT_DIR)
+index.update_index_list()
+index.read_headers()
 query = 'Jacobowitz  | underemployed'
 
-resp = search(IndexStorage, fout, query)
+resp = index.search(query)
 print(resp)
 
 #   index = Index(IndexStorage, dir='data', threshold=2*100*1000*1000)

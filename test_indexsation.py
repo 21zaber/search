@@ -14,7 +14,9 @@ def obj_gen():
             break
         yield dict(obj)
 
-index = Index(IndexStorage, dir='../data', threshold=1*10*1000*1000)
+log("Indexsation started")
+
+index = Index(IndexStorage, dir='../data', threshold=5*100*1000*1000)
 
 start_ts = ctime()
 total_len = 0
@@ -23,7 +25,7 @@ total_cnt = 0
 for doc in obj_gen():
     total_cnt +=1
     total_len += len(doc.get('text', ''))
-    index.add_doc(doc['id'], tokenizer.extract_token_set(doc))
+    index.add_doc(doc['id'], tokenizer.extract_token_positions(doc))
 
 index.write_index()
 
