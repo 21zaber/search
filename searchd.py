@@ -115,28 +115,62 @@ def parse_query(s):
     return stack
 
 class Res:
-    def __init__(self, ids, n=False):
-        self._ids = set(ids)
+    def __init__(self, data, n=False):
+        self.data = data
         self.n = n
+
+    @staticmethod
+    def _or(a, b):
+        doc_ids = set(a.keys()) | set(b.keys())
+        data = {}
+        for i in doc_ids:
+            data[i] = list(set(a.get(i, [])) | set(b.get(i, [])))
+
+        return data
+    
+    @staticmethod
+    def _and(a, b):
+        doc_ids = set(a.keys()) & set(b.keys())
+        data = {}
+        for i in doc_ids:
+            if i in a and i in b:
+                data[i] = list(set(a[i])) | set(b[i])))
+            elif i in a:
+                data[i] = a[i]
+            else:
+                data[i] = b[i]
+
+        return data
+
+    @staticmethod
+    def _sub(a, b):
+        data = {}
+        for doc_id in a.keys():
+            if doc_id in b:
+                data[doc_id] = list(set(a[doc_id]) - set(b[doc_id]))
+            else:
+                data[doc_id] = a[doc_id]
+
+        return data
 
     def __or__(a, b):
         if a.n == b.n:
-            return type(a)(a._ids | b._ids, n=a.n)
+            return type(a)(type(a)._or(a.data, b.data), n=a.n)
 
         if a.n:
-            return type(b)(b._ids - a._ids)
-        return type(a)(a._ids - b._ids)
+            return type(b)(type(b)._sub(b.data, a.data)
+        return type(a)(type(a)._sub(a.data, b.data)
 
     def __and__(a, b):
         if a.n == b.n:
-            return type(a)(a._ids & b._ids, n=a.n)
+            return type(a)(type(a)._and(a.data, b.data), n=a.n)
 
         if a.n:
-            return type(b)(b._ids - a._ids)
-        return type(a)(a._ids - b._ids)
+            return type(b)(type(b)._sub(b.data, a.data)
+        return type(a)(type(a)._sub(a.data, b.data)
 
     def __neg__(a):
-        return Res(a._ids, n= not a.n)
+        return type(a)(a.data, n= not a.n)
 
 
 

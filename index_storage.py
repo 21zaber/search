@@ -141,10 +141,13 @@ class Index:
         self.dir = dir
         self.current_idx = 0
         self.indexes = []
-        self.headers = {}
         self.index = {}
+
         self.term_size = 0
-        self.list_len = 0
+        self.term_cnt = 0
+        self.entr_cnt = 0
+        self.doc_cnt = 0
+
         self.threshold = threshold
 
         self.forget()
@@ -164,17 +167,15 @@ class Index:
             self.headers[idx] = self._read_header(idx)
 
     def __len__(self):
-        return self.storage.int_size * len(self.index) + self.term_size + self.list_len * self.storage.int_size
+        len_size = self.storage.len_size
+        int_size = self.storage.int_size
+        return len_size * (2 * self.term_cnt + self.doc_cnt) + int_size * self.entr_cnt + self.term_size
 
     def write_index(self):
-        with open(self._index_file(), 'w+b') as index_file:#, open(self._header_file(), 'w+b') as header_file:
+        with open(self._index_file(), 'w+b') as index_file:
             st = self.storage
             idx = [(k, self.index[k]) for k in self.index]
             idx.sort(key=lambda x: x[0])
-            def wi(b):
-                index_file.write(b)
-            def wh(b):
-                header_file.write(b)
 
             term_count = len(self.index)
             header = []
@@ -182,50 +183,41 @@ class Index:
             hsz, isz = 0, 0
 
             for i in idx:
-                term, lst = i
                 position = index_file.tell()
-
                 header.append(position)
-                wi(st.str2byte(term))
-                wi(st.lst2byte(lst))
+                self._write(index_file, idx[i])
+
         self._write_header(header, os.path.join(self.dir, self._index_name()))
 
         log("Index stored in {}".format(self._index_file()))
-
-    def forget(self):
         self.indexes.append(self._index_name())
 
+    def forget(self):
         while os.path.isfile(self._index_file()) or os.path.isfile(self._header_file()):
             self.current_idx += 1
 
         self.index = {}
         self.term_size = 0
-        self.list_len = 0
+        self.term_cnt = 0
+        self.entr_cnt = 0
+        self.doc_cnt = 0
 
     def add_doc(self, doc_id, term_set):
         doc_id = int(doc_id)
 
         for term in term_set:
             if term not in self.index:
-                self.index[term] = set()
+                self.index[term] = {}
                 self.term_size += len(term)
-            self.index[term].add(doc_id)
-            self.list_len += 1
+            self.index[term][doc_id] = term_dict[term]
+            self.term_cnt += 1
+            self.doc_cnt += 1
+            self.entr_cnt += len(term_dict[term])
 
         if len(self) > self.threshold:
             self.write_index()
             self.forget()
         
-    def _read_header_old(self, fname):
-        header = []
-        with open(self._header_file(fname=fname), 'br') as f:
-            n = f.read(self.storage.int_size)
-            n = self.storage.byte2int(n)[0]
-            for i in range(n):
-                header.append(self.storage.byte2int(f.read(self.storage.int_size))[0])
-
-        return header
-
     def _read_header(self, fname):
         header = []
         with open(self._header_file(fname=fname), 'br') as f:
@@ -263,6 +255,29 @@ class Index:
         lstb = lb + f.read(l * self.storage.int_size)
         return self.storage.byte2lst(lstb)
 
+    def _read_block(self, f, p):
+        f.seek(p, 0)
+        block = {}
+
+        lb = f.read(self.storage.int_size)
+        l = self.storage.byte2int(lb)[0]
+
+        for i in range(len(l)):
+            docb = f.read(self.storage.int_size) 
+            doc = self.storage.byte2int(docb)
+
+            block[doc] = self._read_list(f, f.tell())
+
+        return block
+
+    def _write_block(self, f, block):
+        st = self.storage
+
+        f.write(st.int2byte(len(block)))
+        for doc_id in block:
+            pos = block[doc_id]
+            f.write(st.int2byte(doc_id))
+            f.write(st.lst2byte(pos))
 
     def _merge(self, fname1, fname2, outfname):
         ''' Merge 2 indexes in files <fname1> and <fname2> to one file <outfname>'''
@@ -293,9 +308,9 @@ class Index:
             while pos[0] < n[0] or pos[1] < n[1]:
                 if pos[0] < n[0] and pos[1] < n[1]:
                     if term[0] == term[1]:
-                        l1 = self._read_list(f[0], p[0])
-                        l2 = self._read_list(f[1], p[1])
-                        lo = set(l1) | set(l2)
+                        l1 = self._read_block(f[0], p[0])
+                        l2 = self._read_block(f[1], p[1])
+                        lo = Res(l1) | Res(l2)
                         termo = term[0]
                         read_term(0)
                         read_term(1)
@@ -305,7 +320,7 @@ class Index:
                         else:
                             cur = 1
 
-                        lo = self._read_list(f[cur], p[cur])
+                        lo = self._read_block(f[cur], p[cur])
                         termo = term[cur]
                         read_term(cur)
                 else:
@@ -314,14 +329,15 @@ class Index:
                     else:
                         cur = 0
 
-                    lo = self._read_list(f[cur], p[cur])
+                    lo = self._read_block(f[cur], p[cur])
                     termo = term[cur]
                     read_term(cur)
 
 
                 hout.append(fout.tell())
                 fout.write(self.storage.str2byte(termo))
-                fout.write(self.storage.lst2byte(list(lo)))
+                self._write_block(fout, lo)
+#                fout.write(self.storage.lst2byte(list(lo)))
 
         self._write_header(hout, outfname)
         
