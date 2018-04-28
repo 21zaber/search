@@ -1,6 +1,46 @@
 from utils import log
 import re
 import time
+import copy
+
+RES_TYPE_OP = 1
+RES_TYPE_RES = 2
+RES_TYPE_EMPTY = 3
+
+class ResIter:
+    def __init__(self, index=None, op=None, fname=None, pos=0, children=None, empty=False):
+        self.fname = fname
+        self.position = p
+        self.op = op
+        self.children = children
+        self.index = index
+        if empty:
+            self.type = RES_TYPE_EMPTY
+        elif op and children:
+            self.type = RES_TYPE_OP
+        else:
+            self.type = RES_TYPE_RES
+            with open(self.index._index_file(fname=fname), 'br') as fidx:
+                fidx.seek(pos, 0)
+                self.block_size = index.storage.byte2int(fidx.read(index.storage.int_size))
+                self.current_pos = fidx.tell()
+
+    def __iter__(self):
+        if self.type == RES_TYPE_EMPTY:
+            yield None
+        if self.type == RES_TYPE_OP:
+            pass
+        else:
+            with open(self.index._index_file(fname=self.fname), 'br') as fidx:
+                while self.current_pos < self.block_size - self.index.storage.int_size * 3:
+                    doc = self.index.storage.byte2int(fidx.read(self.index.storage.int_size))
+                    self.current_pos += self.storage.int_size
+                    lst = self.index._read_list(fidx, self.current_pos)
+                    self.current_pos += self.index.storage._calc_lst_size(len(lst))
+                    yield {doc: lst}
+            while True:
+                yield None
+
 
 def _prepare_word(query):
     return query.lower()
@@ -31,12 +71,12 @@ def search_in_index(index, header, fname, query):
         log("Block found for {} sec".format(time.time() - ts))
 
         if l > r:
-            res = []
+            res = ResIter(empty=True)
         else:
-            res = index._read_block(idx, idx.tell())
+            res = ResIter(index=index, fname=fname, pos=idx.tell())
 
-    ts = time.time() - ts
-    log("Search finished, {} results, {} sec.".format(len(res), ts))
+#   ts = time.time() - ts
+#   log("Search finished, {} results, {} sec.".format(len(res), ts))
 
     return res
                                                                                            
@@ -233,29 +273,26 @@ def process_query(s, index, header, fname):
 
     for i in s:
         if i[0] not in ops:
-            stack.append(Res(search_in_index(index, header, fname, i)))
+            stack.append(search_in_index(index, header, fname, i))
             continue
 
         if i == '!':
-            stack[-1] = -stack[-1]
+            stack[-1] = ResIter(op='!', children=[copy.deepcopy(stack[-1])])
             continue
         
         if i == '|':
-            stack[-2] |= stack[-1]
+            stack[-2] = ResIter(op='|', children=[copy.deepcopy(stack[-1]), copy.deepcopy(stack[-2])])
             del stack[-1]
             continue
 
         if i == '&':
-            stack[-2] &= stack[-1]
+            stack[-2] = ResIter(op='&', children=[copy.deepcopy(stack[-1]), copy.deepcopy(stack[-2])])
             del stack[-1]
             continue
 
         if i[0] == '/':
             n, d = map(int, i[1:].split('_'))
-            wrds = stack[-n:]
-            r = wrds[-1]
-            for j in wrds[:-1][::-1]:
-                r = Res.quote(j, r, d)
+            r = ResIter(op=i[0], children=[copy.deepcopy(stack[-i]) for i in range(1, n+1)])
 
             for j in range(n):
                 del stack[-1]
@@ -263,6 +300,6 @@ def process_query(s, index, header, fname):
             stack.append(r)
 
     if len(stack) == 1:
-        return set(stack[0].data.keys())
+        return stack[0]
     else:
         raise Exception()

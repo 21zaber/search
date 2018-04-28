@@ -28,7 +28,9 @@ CORS(APP)
 
 cache = {}
 
-def get_doc_descr(doc_id):
+def get_doc_descr(doc):
+    log(doc)
+    doc_id = doc.keys()[0]
     resp = {
         'id': doc_id,
     }
@@ -46,20 +48,12 @@ def api_search():
     query = data.get('query', '')
 
     ts = time.time()
-    doc_ids = list(index.search(query))
+    res = index.search(query)
     ts = time.time() - ts
-
-    page_n = len(doc_ids) / PAGE_SIZE
-    if page_n > int(page_n):
-        page_n += 1
-    page_n = int(page_n)
-    doc_cnt = len(doc_ids)
 
     resp = {
         'id': rand_str(10),
-        'doc_ids': doc_ids,
-        'page_number': page_n,
-        'count': doc_cnt,
+        'res': res,
         'time': ts,
     }
 
@@ -71,19 +65,8 @@ def api_get_results(id, page):
     resp = copy.deepcopy(cache[id])
     page = int(page)
 
-    if resp['page_number'] == 0:
-        return dumps(resp)+ '\n'
-
-    if page >= resp['page_number']:
-        raise Exception()
-
-    if page == resp['page_number']-1:
-        doc_ids = resp['doc_ids'][page*PAGE_SIZE:]
-    else:
-        doc_ids = resp['doc_ids'][page*PAGE_SIZE:(page+1)*PAGE_SIZE]
-
-    resp['docs'] = [get_doc_descr(i) for i in doc_ids]
-    del resp['doc_ids']
+    resp['docs'] = [get_doc_descr(i) for i in resp['res']]
+    del resp['res']
 
     return dumps(resp) + '\n'
 
