@@ -281,8 +281,10 @@ class Index:
     def _write_block(self, f, block):
         st = self.storage
         bblock = bytes()
+        doc_ids = list(block.keys())
+        doc_ids.sort()
 
-        for doc_id in block:
+        for doc_id in doc_ids:
             pos = block[doc_id]
             bblock += st.int2byte(doc_id)
             bblock += st.lst2byte(pos)
@@ -435,7 +437,8 @@ class Index:
 
     def search(self, query):
         s = parse_query(query)
-        res = set()
+        idx = self.indexes[0]
+        return process_query(s, self, self.headers[idx], idx)
 
         for idx in self.indexes:
             r = process_query(s, self, self.headers[idx], idx)
