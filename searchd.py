@@ -44,8 +44,11 @@ def parse_query(s):
     re_to_space = re.compile("[-,^&\\\\\']")
     re_to_nothing = re.compile("[\*<>=+]")
 
+    def digit(c, debug=False):
+        return c >= '0' and c <= '9'
+
     def letter(c, debug=False):                                                                            
-        return ((c >= 'a' and c <= 'z') or (c >= 'A' and c <= 'Z') or (c >= '0' and c <= '9'))
+        return ((c >= 'a' and c <= 'z') or (c >= 'A' and c <= 'Z'))
 
     def word(s, debug=False):
         if debug:
@@ -68,7 +71,7 @@ def parse_query(s):
         
         if not s:
             return stack, p
-        
+
         if s[0] == '!':
             rstack, rp = query(s[1:], debug=debug, stop=True)
             stack, p = rstack + ['!'], rp+1
@@ -78,6 +81,36 @@ def parse_query(s):
                 stack, p = rstack, rp+2
             else:
                 raise Exception()
+        elif s[0] == '"':
+            print(s)
+            p = 1
+            wrd_cnt = 0
+            dist = 0
+            wrd, rp = word(s[1:])
+            while wrd:
+                wrd_cnt += 1
+                stack += wrd
+                p += rp
+                while p < len(s) and s[p] == ' ':
+                    p+=1
+                if s[p] == '"':
+                    break
+                wrd, rp = word(s[p:])
+            if p >= len(s) or s[p] != '"':
+                raise Exception()
+            p += 1
+            if p+1 < len(s) and s[p] == '/':
+                p+=1
+                while p < len(s) and digit(s[p]):
+                    dist = dist * 10 + int(s[p])
+                    p += 1
+                
+            if dist == 0:
+                dist = 1
+
+            op = '/{}_{}'.format(wrd_cnt, dist)
+            stack.append(op)
+
         else:
             stack, p = word(s, debug=debug)
             
@@ -174,15 +207,32 @@ class Res:
     def __neg__(a):
         return type(a)(a.data, n= not a.n)
 
+    @staticmethod
+    def quote(a, b, d):
+        doc_ids = set(a.data.keys()) & set(b.data.keys())
+        data = {}
+
+        for i in doc_ids:
+            data[i] = []
+            bset = b.data[i]
+            for j in a.data[i]:
+                for k in range(d):
+                    if j+k in bset:
+                        data[i].append(j)
+                        break
+            if not data[i]:
+                del data[i]
+        return Res(data)
 
 
 def process_query(s, index, header, fname):
+    log("Converted query:", s)
     stack = []
 
-    ops = {'!', '&', '|'}
+    ops = {'!', '&', '|', '/'}
 
     for i in s:
-        if i not in ops:
+        if i[0] not in ops:
             stack.append(Res(search_in_index(index, header, fname, i)))
             continue
 
@@ -199,6 +249,18 @@ def process_query(s, index, header, fname):
             stack[-2] &= stack[-1]
             del stack[-1]
             continue
+
+        if i[0] == '/':
+            n, d = map(int, i[1:].split('_'))
+            wrds = stack[-n:]
+            r = wrds[-1]
+            for j in wrds[:-1][::-1]:
+                r = Res.quote(j, r, d)
+
+            for j in range(n):
+                del stack[-1]
+
+            stack.append(r)
 
     if len(stack) == 1:
         return set(stack[0].data.keys())

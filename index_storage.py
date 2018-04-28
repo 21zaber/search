@@ -102,11 +102,11 @@ class IndexStorage:
 
     @classmethod
     def byte2int(cls, b):
-        return cls._int_struct().unpack(b[:cls.int_size])
+        return cls._int_struct().unpack(b[:cls.int_size])[0]
 
     @classmethod
     def byte2len(cls, b):
-        return cls._len_struct().unpack(b[:cls.len_size])
+        return cls._len_struct().unpack(b[:cls.len_size])[0]
 
     @classmethod
     def test(cls):
@@ -225,9 +225,9 @@ class Index:
         header = []
         with open(self._header_file(fname=fname), 'br') as f:
             n = f.read(self.storage.int_size)
-            n = self.storage.byte2int(n)[0]
+            n = self.storage.byte2int(n)
             for i in range(n):
-                header.append(self.storage.byte2int(f.read(self.storage.int_size))[0])
+                header.append(self.storage.byte2int(f.read(self.storage.int_size)))
                 if i > 0:
                     header[-1] += header[-2]
 
@@ -245,7 +245,7 @@ class Index:
     def _read_term(self, f, p):
         f.seek(p, 0)
         lb = f.read(self.storage.len_size)
-        l = self.storage.byte2len(lb)[0]
+        l = self.storage.byte2len(lb)
 
         strb = lb + f.read(l)
         return self.storage.byte2str(strb)
@@ -256,7 +256,7 @@ class Index:
     def _read_list(self, f, p):
         f.seek(p, 0)
         lb = f.read(self.storage.len_size)
-        l = self.storage.byte2len(lb)[0]
+        l = self.storage.byte2len(lb)
 
         lstb = lb + f.read(l * self.storage.int_size)
         return self.storage.byte2lst(lstb)
@@ -266,24 +266,28 @@ class Index:
         block = {}
 
         lb = f.read(self.storage.int_size)
-        l = self.storage.byte2int(lb)[0]
+        l = self.storage.byte2int(lb)
 
-        for i in range(l):
-            docb = f.read(self.storage.int_size) 
-            doc = self.storage.byte2int(docb)[0]
-
-            block[doc] = self._read_list(f, f.tell())
+        bblock = f.read(l)
+        p = 0
+        while p < len(bblock) - self.storage.int_size * 3:
+            doc = self.storage.byte2int(bblock[p:])
+            p += self.storage.int_size
+            block[doc] = self.storage.byte2lst(bblock[p:])
+            p += self.storage.int_size * (len(block[doc]) + 1)
 
         return block
 
     def _write_block(self, f, block):
         st = self.storage
+        bblock = bytes()
 
-        f.write(st.int2byte(len(block)))
         for doc_id in block:
             pos = block[doc_id]
-            f.write(st.int2byte(doc_id))
-            f.write(st.lst2byte(pos))
+            bblock += st.int2byte(doc_id)
+            bblock += st.lst2byte(pos)
+
+        f.write(st.int2byte(len(bblock)) + bblock)
 
     def _merge(self, fname1, fname2, outfname):
         ''' Merge 2 indexes in files <fname1> and <fname2> to one file <outfname>'''

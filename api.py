@@ -71,6 +71,9 @@ def api_get_results(id, page):
     resp = copy.deepcopy(cache[id])
     page = int(page)
 
+    if resp['page_number'] == 0:
+        return dumps(resp)+ '\n'
+
     if page >= resp['page_number']:
         raise Exception()
 
@@ -81,9 +84,6 @@ def api_get_results(id, page):
 
     resp['docs'] = [get_doc_descr(i) for i in doc_ids]
     del resp['doc_ids']
-
-    from pprint import pprint
-    pprint(resp)
 
     return dumps(resp) + '\n'
 
