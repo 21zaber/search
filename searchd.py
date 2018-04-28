@@ -7,17 +7,31 @@ RES_TYPE_OP = 1
 RES_TYPE_RES = 2
 RES_TYPE_EMPTY = 3
 
+class FakeRes():
+    def __init__(self, d):
+        self.d = d
+        self.f = True
+
+    def next(self):
+        if self.f:
+            self.f = False
+            return self.d
+        return None
+
 class ResIter:
     def __init__(self, index=None, op=None, fname=None, pos=0, children=None, empty=False):
         self.fname = fname
-        self.position = p
+        self.position = pos
         self.op = op
+        self.neg = False
         self.children = children
         self.index = index
         if empty:
             self.type = RES_TYPE_EMPTY
         elif op and children:
             self.type = RES_TYPE_OP
+            if self.op == '!':
+                self.neg = True
         else:
             self.type = RES_TYPE_RES
             with open(self.index._index_file(fname=fname), 'br') as fidx:
@@ -25,21 +39,75 @@ class ResIter:
                 self.block_size = index.storage.byte2int(fidx.read(index.storage.int_size))
                 self.current_pos = fidx.tell()
 
-    def __iter__(self):
+    @staticmethod
+    def _quote(a, b, d):
+        ch1, ch2 = a.next(), b.next()
+        while ch1 and ch2:
+            if ch1[0] == ch2[0]:
+                poses = []
+                bset = set(ch2[1])
+                for i in ch1[1]:
+                    for k in range(d):
+                        if i+k+1 in bset:
+                            poses.append(i)
+                            break
+                if poses:
+                    return (ch1[0], poses)
+                ch1, ch2 = a.next(), b.next()
+            elif ch1[0] < ch2[0]:
+                ch1 = a.next()
+            else:
+                ch2 = b.next()
+        return None
+
+    def quote(self, children, d):
+        if len(children) == 1:
+            return children[0].next()
+        r = self._quote(children[-2], children[-1], d)
+        while r:
+            t = self.quote(children[:-2]+[FakeRes(r)], d)
+            if t:
+                return t
+            r = self._quote(children[-2], children[-1], d)
+
+        return None
+
+    def next(self):
         if self.type == RES_TYPE_EMPTY:
-            yield None
+            return None
         if self.type == RES_TYPE_OP:
-            pass
+            if self.op == '&':
+                ch1, ch2 = self.children[0].next(), self.children[1].next()
+                while ch1 and ch2:
+                    if ch1[0] == ch2[0]:
+                        return ch1
+                    elif ch1[0] < ch2[0]:
+                        ch1 = self.children[0].next()
+                    else:
+                        ch2 = self.children[1].next()
+            if self.op == '|':
+                ch1, ch2 = self.children[0].next(), self.children[1].next()
+                while ch1:
+                    return ch1
+                while ch2:
+                    return ch2
+            if self.op == '!':
+                ch1 = self.children[0].next()
+                while ch1:
+                    return ch1
+            if self.op[0] == '/':
+                n, d = map(int, self.op[1:].split('_'))
+                return self.quote(self.children, d)
         else:
             with open(self.index._index_file(fname=self.fname), 'br') as fidx:
-                while self.current_pos < self.block_size - self.index.storage.int_size * 3:
+                fidx.seek(self.current_pos, 0)
+                while self.current_pos - self.position < self.block_size - self.index.storage.int_size * 3:
                     doc = self.index.storage.byte2int(fidx.read(self.index.storage.int_size))
-                    self.current_pos += self.storage.int_size
+                    self.current_pos += self.index.storage.int_size
                     lst = self.index._read_list(fidx, self.current_pos)
                     self.current_pos += self.index.storage._calc_lst_size(len(lst))
-                    yield {doc: lst}
-            while True:
-                yield None
+                    return (doc, lst,)
+            return None
 
 
 def _prepare_word(query):
@@ -292,7 +360,7 @@ def process_query(s, index, header, fname):
 
         if i[0] == '/':
             n, d = map(int, i[1:].split('_'))
-            r = ResIter(op=i[0], children=[copy.deepcopy(stack[-i]) for i in range(1, n+1)])
+            r = ResIter(op=i, children=[copy.deepcopy(stack[-i]) for i in range(n, 0, -1)])
 
             for j in range(n):
                 del stack[-1]

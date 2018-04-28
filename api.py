@@ -29,12 +29,13 @@ CORS(APP)
 cache = {}
 
 def get_doc_descr(doc):
-    log(doc)
-    doc_id = doc.keys()[0]
+    doc_id = doc[0]
     resp = {
         'id': doc_id,
     }
     row = db.select(obj_id=str(doc_id)).fetchone()
+    if not row:
+        return {}
     doc = dict(row)
     resp['title'] = doc.get('title', 'Empty title')
     resp['url'] = get_page_url(doc_id)
@@ -43,13 +44,15 @@ def get_doc_descr(doc):
 
 @APP.route('/search/', methods=['POST'])
 def api_search():
+    ts = time.time()
     data = request.json
+    log('[api_search] {}'.format(data))
 
     query = data.get('query', '')
 
-    ts = time.time()
     res = index.search(query)
     ts = time.time() - ts
+    log("Query searched for {} sec".format(ts))
 
     resp = {
         'id': rand_str(10),
@@ -62,13 +65,18 @@ def api_search():
 
 @APP.route('/get_results/<id>/<page>', methods=['GET'])
 def api_get_results(id, page):
-    resp = copy.deepcopy(cache[id])
+    log('[api_get_results] id: {}, page: {}'.format(id, page))
+    resp = cache[id]
     page = int(page)
 
-    resp['docs'] = [get_doc_descr(i) for i in resp['res']]
-    del resp['res']
+    docs = []
+    for i in range(PAGE_SIZE):
+        doc = resp['res'].next()
+        if not doc:
+            break
+        docs.append(get_doc_descr(doc))
 
-    return dumps(resp) + '\n'
+    return dumps({'docs':docs}) + '\n'
 
 @APP.after_request
 def after_request(response):
