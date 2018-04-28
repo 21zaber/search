@@ -4,6 +4,9 @@ from time import gmtime, strftime, time as ctime
 
 from utils import format_memory, format_time 
 
+from nltk.stem import PorterStemmer
+ps = PorterStemmer()
+
 MIN_TOKEN_LENGTH = 3
 
 # wrong symbol re
@@ -11,6 +14,9 @@ wsre = re.compile('[^a-zA-Z\ ]')
 
 def check_token(token):
     return len(token) >= MIN_TOKEN_LENGTH
+
+def prepare_token(token):
+    return ps.stem(token)
 
 def extract_token_list(obj):
     text = obj.get('text', '')
@@ -20,6 +26,7 @@ def extract_token_list(obj):
     text = text.lower()
 
     token_list = text.split()   
+    token_list = [prepare_token(i) for i in token_list]
     return token_list
 
 def extract_token_set(obj):
