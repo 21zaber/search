@@ -2,10 +2,10 @@ import re
 from collections import defaultdict as DD
 from time import gmtime, strftime, time as ctime
 
-from utils import format_memory, format_time 
+from utils import format_memory, format_time, log 
+from stemmer import Stemmer
 
-from nltk.stem import PorterStemmer
-ps = PorterStemmer()
+st = Stemmer(method='wordnet')
 
 MIN_TOKEN_LENGTH = 3
 
@@ -16,7 +16,10 @@ def check_token(token):
     return len(token) >= MIN_TOKEN_LENGTH
 
 def prepare_token(token):
-    return ps.stem(token)
+    stemed = st.stem(token)
+    #log('{} -> {}'.format(token, stemed))
+    return stemed
+    return token
 
 def extract_token_list(obj):
     text = obj.get('text', '')
@@ -26,7 +29,7 @@ def extract_token_list(obj):
     text = text.lower()
 
     token_list = text.split()   
-    token_list = [prepare_token(i) for i in token_list]
+    token_list = [prepare_token(i) for i in token_list if i and check_token(i)]
     return token_list
 
 def extract_token_set(obj):

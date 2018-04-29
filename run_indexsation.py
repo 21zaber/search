@@ -5,19 +5,30 @@ from collections import defaultdict as DD
 from index_storage import IndexStorage, Index
 from time import gmtime, strftime, time as ctime
 from utils import format_memory, format_time, log
+import os
+
 
 LIMIT = 10**4
+DB_IDS_FILE = '../files/docids.txt'
 step = LIMIT // 10
+
 
 db = DB()
 
-def obj_gen():
-    req = db.select(chunks=10000, limit=LIMIT)
-    while True:
-        obj = req.fetchone()
-        if not obj:
-            break
-        yield dict(obj)
+def get_ids():
+    if os.path.isfile(DB_IDS_FILE):
+        with open(DB_IDS_FILE, 'r') as f:
+            for i in range(LIMIT):
+                yield dict(db.select(f.readline()[:-1]).fetchone())
+    else:
+        with open(DB_IDS_FILE, 'w') as f:
+            req = db.select(chunks=10000, limit=LIMIT)
+            while True:
+                obj = req.fetchone()
+                if not obj:
+                    break
+                f.write(obj['id']+'\n')
+                yield dict(obj)
 
 log("Indexsation started")
 
@@ -27,7 +38,7 @@ start_ts = ctime()
 total_len = 0
 total_cnt = 0
 
-for doc in obj_gen():
+for doc in get_ids():
     total_cnt +=1
     total_len += len(doc.get('text', ''))
     index.add_doc(doc['id'], tokenizer.extract_token_positions(doc))
