@@ -103,9 +103,9 @@ class ResIter:
                 fidx.seek(self.current_pos, 0)
                 while self.current_pos - self.position < self.block_size - self.index.storage.int_size * 3:
                     doc = self.index.storage.byte2int(fidx.read(self.index.storage.int_size))
-                    self.current_pos += self.index.storage.int_size
+                    self.current_pos = fidx.tell()
                     lst = self.index._read_list(fidx, self.current_pos)
-                    self.current_pos += self.index.storage._calc_lst_size(len(lst))
+                    self.current_pos = fidx.tell()
                     return (doc, lst,)
             return None
 

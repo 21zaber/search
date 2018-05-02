@@ -224,6 +224,7 @@ class Index:
     def _read_header(self, fname):
         header = []
         with open(self._header_file(fname=fname), 'br') as f:
+            return self._read_list(f, 0)
             n = f.read(self.storage.int_size)
             n = self.storage.byte2int(n)
             for i in range(n):
@@ -234,6 +235,9 @@ class Index:
         return header
 
     def _write_header(self, header, fname):
+        with open(self._header_file(fname=fname), 'bw') as f:
+            self._write_list(f, header)
+        return
         data = [header[0]]
 
         for i in range(1, len(header)):
@@ -253,13 +257,68 @@ class Index:
     def _write_term(self, f, term):
         f.write(self.storage.str2byte(term))
 
+    def _encode_int8(self, a):
+        b = b''
+        base = 2 ** 7
+        while a >= base:
+            b += struct.pack('B', a%base)
+            a //= base
+        b += struct.pack('B', base + a)
+            
+        return b
+
+    def _decode_int8(self, b):
+        a = 0
+        base = 2 ** 7
+        osn = 1
+        l = 0
+        for i in b:
+            l += 1
+            if i >= base:
+                a += (i - base) * osn
+                break
+            a += i * osn
+            
+            osn *= base
+            
+        return a, l
+
+    def _encode_list8(self, l):
+        b = b''
+        b += self._encode_int8(l[0])
+        t = l[0]
+        for i in l[1:]:
+            b += self._encode_int8(i-t)
+            t = i
+
+        return self.storage.int2byte(len(b)) + b
+
+    def _decode_list8(self, b):
+        length = self.storage.byte2len(b[0])
+        l = []
+        i = 1
+        while i < length+1:
+            a, p = self._decode_int8(b[i:])
+            l.append(a)
+            i += p
+        return l
+
     def _read_list(self, f, p):
         f.seek(p, 0)
         lb = f.read(self.storage.len_size)
-        l = self.storage.byte2len(lb)
+        length = self.storage.byte2len(lb)
+        l = []
+        b = f.read(length)
+        
+        while b:
+            a, p = self._decode_int8(b)
+            b = b[p:]
+            l.append(a)
+            
+        return l
 
-        lstb = lb + f.read(l * self.storage.int_size)
-        return self.storage.byte2lst(lstb)
+    def _write_list(self, f, l): 
+        f.write(self._encode_list8(l))
 
     def _read_block(self, f, p):
         f.seek(p, 0)
@@ -273,7 +332,8 @@ class Index:
         while p < len(bblock) - self.storage.int_size * 3:
             doc = self.storage.byte2int(bblock[p:])
             p += self.storage.int_size
-            block[doc] = self.storage.byte2lst(bblock[p:])
+            block[doc] = self._decode_list8(bblock[p:])
+            #block[doc] = self.storage.byte2lst(bblock[p:])
             p += self.storage.int_size * (len(block[doc]) + 1)
 
         return block
@@ -285,9 +345,10 @@ class Index:
         doc_ids.sort()
 
         for doc_id in doc_ids:
-            pos = block[doc_id]
+            pos = list(block[doc_id])
+            pos.sort()
             bblock += st.int2byte(doc_id)
-            bblock += st.lst2byte(pos)
+            bblock += self._encode_list8(pos)
 
         f.write(st.int2byte(len(bblock)) + bblock)
 
