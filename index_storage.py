@@ -222,29 +222,13 @@ class Index:
             self.forget()
         
     def _read_header(self, fname):
-        header = []
         with open(self._header_file(fname=fname), 'br') as f:
-            return self._read_list(f, 0)
-            n = f.read(self.storage.int_size)
-            n = self.storage.byte2int(n)
-            for i in range(n):
-                header.append(self.storage.byte2int(f.read(self.storage.int_size)))
-                if i > 0:
-                    header[-1] += header[-2]
-
-        return header
+            h = self._read_list(f, 0)
+        return h
 
     def _write_header(self, header, fname):
         with open(self._header_file(fname=fname), 'bw') as f:
             self._write_list(f, header)
-        return
-        data = [header[0]]
-
-        for i in range(1, len(header)):
-            data.append(header[i]-header[i-1])
-
-        with open(self._header_file(fname=fname), 'bw') as f:
-            f.write(self.storage.lst2byte(data))  
 
     def _read_term(self, f, p):
         f.seek(p, 0)
@@ -296,10 +280,11 @@ class Index:
     def _decode_list8(self, b):
         length = self.storage.byte2len(b[0])
         l = []
-        i = 1
+        a, i = self._decode_int8(b)
+        l.append(a)
         while i < length+1:
             a, p = self._decode_int8(b[i:])
-            l.append(a)
+            l.append(a+l[-1])
             i += p
         return l
 
@@ -309,11 +294,15 @@ class Index:
         length = self.storage.byte2len(lb)
         l = []
         b = f.read(length)
+
+        a, p = self._decode_int8(b)
+        b = b[p:]
+        l.append(a)
         
         while b:
             a, p = self._decode_int8(b)
             b = b[p:]
-            l.append(a)
+            l.append(a+l[-1])
             
         return l
 
