@@ -5,7 +5,6 @@ from flask_cors import CORS
 from json import dumps, loads
 from os import makedirs
 import time
-import copy
 
 from wikidb import DB
 from index_storage import IndexStorage, Index

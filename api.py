@@ -5,7 +5,6 @@ from flask_cors import CORS
 from json import dumps, loads
 from os import makedirs
 import time
-import copy
 
 from wikidb import DB
 from index_storage import IndexStorage, Index
@@ -68,15 +67,18 @@ def api_get_results(id, page):
     log('[api_get_results] id: {}, page: {}'.format(id, page))
     resp = cache[id]
     page = int(page)
+    ats = 0
 
     docs = []
     for i in range(PAGE_SIZE):
+        ts = time.time()
         doc = resp['res'].next()
+        ats += time.time() - ts
         if not doc:
             break
         docs.append(get_doc_descr(doc))
 
-    return dumps({'docs':docs}) + '\n'
+    return dumps({'docs':docs, 'ats':ats / PAGE_SIZE, 'ts':ats}) + '\n'
 
 @APP.after_request
 def after_request(response):

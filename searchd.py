@@ -1,7 +1,6 @@
 from utils import log
 import re
 import time
-import copy
 
 RES_TYPE_OP = 1
 RES_TYPE_RES = 2
@@ -345,22 +344,22 @@ def process_query(s, index, header, fname):
             continue
 
         if i == '!':
-            stack[-1] = ResIter(op='!', children=[copy.deepcopy(stack[-1])])
+            stack[-1] = ResIter(op='!', children=[stack[-1]])
             continue
         
         if i == '|':
-            stack[-2] = ResIter(op='|', children=[copy.deepcopy(stack[-1]), copy.deepcopy(stack[-2])])
+            stack[-2] = ResIter(op='|', children=[stack[-1], stack[-2]])
             del stack[-1]
             continue
 
         if i == '&':
-            stack[-2] = ResIter(op='&', children=[copy.deepcopy(stack[-1]), copy.deepcopy(stack[-2])])
+            stack[-2] = ResIter(op='&', children=[stack[-1], stack[-2]])
             del stack[-1]
             continue
 
         if i[0] == '/':
             n, d = map(int, i[1:].split('_'))
-            r = ResIter(op=i, children=[copy.deepcopy(stack[-i]) for i in range(n, 0, -1)])
+            r = ResIter(op=i, children=[stack[-i] for i in range(n, 0, -1)])
 
             for j in range(n):
                 del stack[-1]

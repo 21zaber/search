@@ -488,7 +488,9 @@ class Index:
     def search(self, query):
         s = parse_query(query)
         idx = self.indexes[0]
-        return process_query(s, self, self.headers[idx], idx)
+        
+        resp = process_query(s, self, self.headers[idx], idx)
+        return resp
 
         for idx in self.indexes:
             r = process_query(s, self, self.headers[idx], idx)
