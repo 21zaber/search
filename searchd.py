@@ -2,6 +2,7 @@ from utils import log, round_up
 import re
 import time
 import storage
+import tokenizer
 
 RES_TYPE_OP = 1
 RES_TYPE_RES = 2
@@ -160,7 +161,7 @@ class ResIter:
         return self.next()
 
 def _prepare_word(query):
-    return query.lower()
+    return tokenizer.prepare_token(query.lower())
 
 def search_in_index(index, header, fname, query):
     query = _prepare_word(query)
