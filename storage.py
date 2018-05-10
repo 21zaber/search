@@ -160,6 +160,11 @@ def read_str(f):
     b = f.read(l)
     return str(b, encoding='utf8')
 
+def skip_list(f):
+    l = read_int(f)
+    f.seek(l, 1)
+    return []
+
 
 if __name__ == '__main__':
     sample = {i:[1,2,8] for i in range(10)}

@@ -19,7 +19,7 @@ class FakeRes():
         return None
 
 class ResIter:
-    def __init__(self, index=None, op=None, fname=None, pos=0, children=None, empty=False, term=None):
+    def __init__(self, index=None, op=None, fname=None, pos=0, children=None, empty=False, term=None, read_list=False):
         self.term = term
         self.fname = fname
         self.position = pos
@@ -27,6 +27,7 @@ class ResIter:
         self.neg = False
         self.children = children
         self.index = index
+        self.read_list = read_list
 
         self.jump_pos = None
         self.unjump_data = None
@@ -121,13 +122,18 @@ class ResIter:
                     return ch1
             if self.op[0] == '/':
                 n, d = map(int, self.op[1:].split('_'))
+                for i in self.children:
+                    i.read_list = True
                 return self.quote(self.children, d)
         else:
             with open(self.index._index_file(fname=self.fname), 'br') as fidx:
                 fidx.seek(self.current_pos, 0)
                 if self.current_i < self.length:
                     doc = storage.read_int(fidx)
-                    lst = storage.read_list(fidx)
+                    if self.read_list:
+                        lst = storage.read_list(fidx)
+                    else:
+                        lst = storage.skip_list(fidx)
                     if storage.ENABLE_JUMPS and self.current_i % self.jump_p == 0 and self.jump_o > 2 and self.current_i < self.length-1:
                         self.jump_pos = storage.read_int_raw(fidx)
                     else:
