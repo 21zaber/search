@@ -2,7 +2,7 @@ from wikidb import DB
 import tokenizer 
 from pprint import pprint
 from collections import defaultdict as DD
-from index_storage import IndexStorage, Index
+from index import Index
 from time import gmtime, strftime, time as ctime
 from utils import format_memory, format_time, log
 import os
@@ -32,7 +32,7 @@ def get_ids():
 
 log("Indexsation started")
 
-index = Index(IndexStorage, dir='../data', threshold=5*100*1000*1000)
+index = Index(dir='../data', threshold=5*100*1000*1000)
 
 start_ts = ctime()
 total_len = 0

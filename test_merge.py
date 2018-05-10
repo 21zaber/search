@@ -12,7 +12,7 @@ files = os.listdir(dir)
 files = {i[:-3] for i in files}
 print(files)
 
-index.indexes = [os.path.join(dir, i) for i in files]
+index.indexes = [os.path.join(dir, i) for i in files][:2]
 
 start_ts = ctime()
 

@@ -7,7 +7,7 @@ from os import makedirs
 import time
 
 from wikidb import DB
-from index_storage import IndexStorage, Index
+from index import Index
 from utils import get_page_url, rand_str, log 
 
 PAGE_SIZE = 10
@@ -17,7 +17,7 @@ log("DB initialization")
 db = DB()
 
 log("Index initialization, base directory {}".format(ROOT_DIR))
-index = Index(IndexStorage, dir=ROOT_DIR)
+index = Index(dir=ROOT_DIR)
 index.update_index_list()
 index.read_headers()
 

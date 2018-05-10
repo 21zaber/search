@@ -6,7 +6,7 @@ from index_storage import IndexStorage, Index
 from time import gmtime, strftime, time as ctime
 from utils import format_memory, format_time, log
 
-LIMIT = 10**4
+LIMIT = 8500000# * 10**7
 step = LIMIT // 10
 
 db = DB()

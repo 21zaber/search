@@ -84,6 +84,6 @@ class DB:
 
 if __name__ == '__main__':
     print(DB().count())    
-    for i in DB().select(limit=10):
-        print(dict(i))
+   #for i in DB().select(limit=10):
+   #    print(dict(i))
     #DB.test()

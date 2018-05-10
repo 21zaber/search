@@ -36,6 +36,9 @@ def log(*args, **kwargs):
     s = '[{ts}]'.format(ts=get_ts())
     print(s, *args, **kwargs)
 
+def round_up(a):
+    ia = int(a)
+    return (ia, ia+1)[ia<a]
 
 def get_page_url(page_id):
     url_template = 'https://en.wikipedia.org/w/api.php?action=query&prop=info&pageids={}&inprop=url'

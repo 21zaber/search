@@ -1,6 +1,7 @@
-from utils import log
+from utils import log, round_up
 import re
 import time
+import storage
 
 RES_TYPE_OP = 1
 RES_TYPE_RES = 2
@@ -18,13 +19,18 @@ class FakeRes():
         return None
 
 class ResIter:
-    def __init__(self, index=None, op=None, fname=None, pos=0, children=None, empty=False):
+    def __init__(self, index=None, op=None, fname=None, pos=0, children=None, empty=False, term=None):
+        self.term = term
         self.fname = fname
         self.position = pos
         self.op = op
         self.neg = False
         self.children = children
         self.index = index
+
+        self.jump_pos = None
+        self.unjump_data = None
+
         if empty:
             self.type = RES_TYPE_EMPTY
         elif op and children:
@@ -35,8 +41,12 @@ class ResIter:
             self.type = RES_TYPE_RES
             with open(self.index._index_file(fname=fname), 'br') as fidx:
                 fidx.seek(pos, 0)
-                self.block_size = index.storage.byte2int(fidx.read(index.storage.int_size))
+                self.block_size = storage.read_int_raw(fidx)
+                self.length = storage.read_int(fidx)
                 self.current_pos = fidx.tell()
+                self.current_i = 0
+
+                self.jump_p, self.jump_o = storage.get_jump_op(self.length)
 
     @staticmethod
     def _quote(a, b, d):
@@ -81,15 +91,30 @@ class ResIter:
                     if ch1[0] == ch2[0]:
                         return ch1
                     elif ch1[0] < ch2[0]:
+                        if self.children[0].can_jump():
+                            j = self.children[0].jump()
+                            if j[0] <= ch2[0]:
+                                ch1 = j
+                                log('SUCCESS JUMP', self.children[0].term)
+                                continue
+                            ch1 = self.children[0].unjump()
+
                         ch1 = self.children[0].next()
                     else:
+                        if self.children[1].can_jump():
+                            j = self.children[1].jump()
+                            if j[0] <= ch1[0]:
+                                ch2 = j
+                                log('SUCCESS JUMP', self.children[1].term)
+                                continue
+                            ch2 = self.children[1].unjump()
+
                         ch2 = self.children[1].next()
             if self.op == '|':
-                ch1, ch2 = self.children[0].next(), self.children[1].next()
-                while ch1:
-                    return ch1
-                while ch2:
-                    return ch2
+                for i in self.children:
+                    r = i.next()
+                    while r:
+                        return r
             if self.op == '!':
                 ch1 = self.children[0].next()
                 while ch1:
@@ -100,14 +125,33 @@ class ResIter:
         else:
             with open(self.index._index_file(fname=self.fname), 'br') as fidx:
                 fidx.seek(self.current_pos, 0)
-                while self.current_pos - self.position < self.block_size - self.index.storage.int_size * 3:
-                    doc = self.index.storage.byte2int(fidx.read(self.index.storage.int_size))
+                if self.current_i < self.length:
+                    doc = storage.read_int(fidx)
+                    lst = storage.read_list(fidx)
+                    if storage.ENABLE_JUMPS and self.current_i % self.jump_p == 0 and self.jump_o > 2 and self.current_i < self.length-1:
+                        self.jump_pos = storage.read_int_raw(fidx)
+                    else:
+                        self.jump_pos = None
                     self.current_pos = fidx.tell()
-                    lst = self.index._read_list(fidx, self.current_pos)
-                    self.current_pos = fidx.tell()
+                    self.current_i += 1
                     return (doc, lst,)
-            return None
 
+        return None
+
+    def can_jump(self):
+        return self.jump_pos is not None
+
+    def jump(self):
+        log("Try to jump", self.jump_pos)
+        self.unjump_data = (self.current_i, self.current_pos)
+        self.current_i = min(self.jump_o + self.current_i-1, self.length-1)
+        self.current_pos += self.jump_pos
+        self.jump_pos = None
+        return self.next()
+
+    def unjump(self):
+        self.current_i, self.current_pos = self.unjump_data
+        return self.next()
 
 def _prepare_word(query):
     return query.lower()
@@ -120,7 +164,8 @@ def search_in_index(index, header, fname, query):
     with open(index._index_file(fname=fname), 'br') as idx:
 
         def read_term(p):
-            return index._read_term(idx, header[p])
+            idx.seek(header[p], 0)
+            return storage.read_str(idx)
 
         l, r = 0, len(header)-1
         m = int(r/2)
@@ -140,10 +185,7 @@ def search_in_index(index, header, fname, query):
         if l > r:
             res = ResIter(empty=True)
         else:
-            res = ResIter(index=index, fname=fname, pos=idx.tell())
-
-#   ts = time.time() - ts
-#   log("Search finished, {} results, {} sec.".format(len(res), ts))
+            res = ResIter(index=index, fname=fname, pos=idx.tell(), term=query)
 
     return res
                                                                                            
