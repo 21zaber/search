@@ -1,5 +1,6 @@
 import struct
 from math import sqrt
+import math
 from utils import round_up
 
 
@@ -49,8 +50,8 @@ ENABLE_LIST_CMP = True
 ENABLE_JUMPS = True
 
 def get_jump_op(l):
-    p = max(1, round_up(sqrt(l-1))) # jump number
-    o = max(1, round_up((l-1) / p / 3)) # jump len
+    p = max(1, round_up(sqrt(l-1) / 3)) # jump number
+    o = min(p-1, max(1, round_up(math.log(l, 1.3)))) # jump len
 
     return p, o
 

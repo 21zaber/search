@@ -78,7 +78,8 @@ def api_get_results(id, page):
             break
         docs.append(get_doc_descr(doc))
 
-    return dumps({'docs':docs, 'ats':ats / PAGE_SIZE, 'ts':ats}) + '\n'
+    resp['res'].update_jump_cnt()
+    return dumps({'docs':docs, 'ats':ats / PAGE_SIZE, 'ts':ats, 'jc':resp['res'].jump_cnt, 'js':resp['res'].jump_suc}) + '\n'
 
 @APP.after_request
 def after_request(response):

@@ -30,6 +30,8 @@ class ResIter:
         self.index = index
         self.read_list = read_list
 
+        self.jump_cnt = 0
+        self.jump_suc = 0
         self.jump_pos = None
         self.unjump_data = None
 
@@ -97,7 +99,7 @@ class ResIter:
                             j = self.children[0].jump()
                             if j[0] <= ch2[0]:
                                 ch1 = j
-                                log('SUCCESS JUMP', self.children[0].term)
+                                #log('SUCCESS JUMP', self.children[0].term)
                                 continue
                             ch1 = self.children[0].unjump()
 
@@ -107,7 +109,7 @@ class ResIter:
                             j = self.children[1].jump()
                             if j[0] <= ch1[0]:
                                 ch2 = j
-                                log('SUCCESS JUMP', self.children[1].term)
+                                #log('SUCCESS JUMP', self.children[1].term)
                                 continue
                             ch2 = self.children[1].unjump()
 
@@ -146,19 +148,31 @@ class ResIter:
         return None
 
     def can_jump(self):
+        #return False
         return self.jump_pos is not None
 
     def jump(self):
-        log("Try to jump", self.jump_pos)
+        #log("Try to jump", self.jump_pos)
         self.unjump_data = (self.current_i, self.current_pos)
         self.current_i = min(self.jump_o + self.current_i-1, self.length-1)
         self.current_pos += self.jump_pos
         self.jump_pos = None
+        self.jump_cnt += 1
+        self.jump_suc += 1
         return self.next()
 
     def unjump(self):
         self.current_i, self.current_pos = self.unjump_data
+        self.jump_suc -= 1
         return self.next()
+
+    def update_jump_cnt(self):
+        if self.type == RES_TYPE_OP:
+            self.jump_cnt = 0
+            self.jump_suc = 0
+            for i in self.children:
+                self.jump_cnt += i.jump_cnt
+                self.jump_suc += i.jump_suc
 
 def _prepare_word(query):
     return tokenizer.prepare_token(query.lower())

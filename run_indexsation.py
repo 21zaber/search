@@ -8,7 +8,7 @@ from utils import format_memory, format_time, log
 import os
 
 
-LIMIT = 10**4
+LIMIT = 10**5
 DB_IDS_FILE = '../files/docids.txt'
 step = LIMIT // 10
 
