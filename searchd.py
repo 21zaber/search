@@ -20,7 +20,7 @@ class FakeRes():
         return None
 
 class ResIter:
-    def __init__(self, index=None, op=None, fname=None, pos=0, children=None, empty=False, term=None, read_list=False):
+    def __init__(self, index=None, op=None, fname=None, pos=0, children=None, empty=False, term=None, read_list=False, idf=None):
         self.term = term
         self.fname = fname
         self.position = pos
@@ -29,6 +29,8 @@ class ResIter:
         self.children = children
         self.index = index
         self.read_list = read_list
+
+        self.idf = idf
 
         self.jump_cnt = 0
         self.jump_suc = 0
@@ -56,18 +58,18 @@ class ResIter:
     def _quote(a, b, d):
         ch1, ch2 = a.next(), b.next()
         while ch1 and ch2:
-            if ch1[0] == ch2[0]:
+            if ch1['id'] == ch2['id']:
                 poses = []
-                bset = set(ch2[1])
-                for i in ch1[1]:
+                bset = set(ch2['lst'])
+                for i in ch1['lst']:
                     for k in range(d):
                         if i+k+1 in bset:
                             poses.append(i)
                             break
                 if poses:
-                    return (ch1[0], poses)
+                    return (ch1['id'], poses)
                 ch1, ch2 = a.next(), b.next()
-            elif ch1[0] < ch2[0]:
+            elif ch1['id'] < ch2['id']:
                 ch1 = a.next()
             else:
                 ch2 = b.next()
@@ -90,49 +92,113 @@ class ResIter:
             return None
         if self.type == RES_TYPE_OP:
             if self.op == '&':
-                ch1, ch2 = self.children[0].next(), self.children[1].next()
-                while ch1 and ch2:
-                    if ch1[0] == ch2[0]:
-                        return ch1
-                    elif ch1[0] < ch2[0]:
-                        if self.children[0].can_jump():
-                            j = self.children[0].jump()
-                            if j[0] <= ch2[0]:
-                                ch1 = j
-                                #log('SUCCESS JUMP', self.children[0].term)
-                                continue
-                            ch1 = self.children[0].unjump()
+                ch1, ch2 = self.children
+                r1, r2 = ch1.next(), ch2.next()
+                if ch1.neg == ch2.neg:
+                    self.neg = ch1.neg
+                    while r1 and r2:
+                        if r1['id'] == r2['id']:
+                            return {'id': r1['id'], 'tf-idf': r1['tf-idf']+r2['tf-idf'], 'lst': []}
+                        elif r1['id'] < r2['id']:
+                            if ch1.can_jump():
+                                j = ch1.jump()
+                                if j['id'] < r2['id']:
+                                    r1 = j
+                                    continue
+                                r1 = ch1.unjump()
+                            r1 = ch1.next()
+                        else:
+                            if ch2.can_jump():
+                                j = ch2.jump()
+                                if j['id'] < r1['id']:
+                                    r2 = j
+                                    continue
+                                r2 = ch2.unjump()
+                            r2 = ch2.next()
+                else:
+                    if ch1.neg:
+                        ch1, ch2 = ch2, ch1
+                        r1, r2 = r2, r1
 
-                        ch1 = self.children[0].next()
-                    else:
-                        if self.children[1].can_jump():
-                            j = self.children[1].jump()
-                            if j[0] <= ch1[0]:
-                                ch2 = j
-                                #log('SUCCESS JUMP', self.children[1].term)
-                                continue
-                            ch2 = self.children[1].unjump()
-
-                        ch2 = self.children[1].next()
+                    while r1 and r2:
+                        if r1['id'] == r2['id']:
+                            r1, r2 = ch1.next(), ch2.next()
+                            continue
+                        elif r1['id'] < r2['id']:
+                            r2.revert()
+                            return r1
+                        else:
+                            if ch2.can_jump():
+                                j = ch2.jump()
+                                if j['id'] < r1['id']:
+                                    r2 = j
+                                    continue
+                                r2 = ch2.unjump()
+                            r2 = ch2.next()
+                
             if self.op == '|':
-                for i in self.children:
-                    r = i.next()
-                    while r:
-                        return r
+                if len(self.children) != 2:
+                    for i in self.children:
+                        r = i.next()
+                        while r:
+                            return r
+                else:
+                    ch1, ch2 = self.children
+                    r1, r2 = ch1.next(), ch2.next()
+                    if ch1.neg == ch2.neg:
+                        self.neg = ch1.neg     
+                        while r1 or r2:
+                            if not r1: return r2
+                            if not r2: return r1
+
+                            if r1['id'] == r2['id']:
+                                return {'id': r1['id'], 'tf-idf': r1['tf-idf']+r2['tf-idf'], 'lst': []}
+                            elif r1['id'] < r2['id']:
+                                r2.revert()
+                                return r1
+                            else:
+                                r1.revert()
+                                return r2
+                    else:
+                        if ch1.neg:
+                            ch1, ch2 = ch2, ch1
+                            r1, r2 = r2, r1
+
+                        self.neg = True
+
+                        while r1 and r2:
+                            if r1['id'] == r2['id']:
+                                r1, r2 = ch1.next(), ch2.next()
+                                continue
+                            elif r1['id'] < r2['id']:
+                                if ch1.can_jump():   
+                                    j = ch1.jump()
+                                    if j['id'] < r2['id']:
+                                        r1 = j
+                                        continue
+                                    r1 = ch2.unjump()
+                                r1 = ch2.next()
+                            else:
+                                r1.revert()
+                                return r2
             if self.op == '!':
-                ch1 = self.children[0].next()
-                while ch1:
-                    return ch1
+                self.neg = True
+                return self.children[0].next()
             if self.op[0] == '/':
                 n, d = map(int, self.op[1:].split('_'))
                 for i in self.children:
                     i.read_list = True
-                return self.quote(self.children, d)
+                doc_id, lst = self.quote(self.children, d)
+                return {'id': doc_id, 'lst': lst, 'tf-idf': 0}
         else:
+            self.save()
             with open(self.index._index_file(fname=self.fname), 'br') as fidx:
                 fidx.seek(self.current_pos, 0)
                 if self.current_i < self.length:
                     doc = storage.read_int(fidx)
+                    doc_len = storage.read_int(fidx)
+                    rate = storage.read_int(fidx)
+                    tf = rate / doc_len
                     if self.read_list:
                         lst = storage.read_list(fidx)
                     else:
@@ -143,12 +209,11 @@ class ResIter:
                         self.jump_pos = None
                     self.current_pos = fidx.tell()
                     self.current_i += 1
-                    return (doc, lst,)
+                    return {'id': doc, 'tf-idf': tf*self.idf, 'lst': lst}
 
         return None
 
     def can_jump(self):
-        #return False
         return self.jump_pos is not None
 
     def jump(self):
@@ -174,6 +239,12 @@ class ResIter:
                 self.jump_cnt += i.jump_cnt
                 self.jump_suc += i.jump_suc
 
+    def save(self):
+        self.backup = (self.current_i, self.current_pos)
+
+    def revert(self):
+        self.current_i, self.current_pos = self.backup
+
 def _prepare_word(query):
     return tokenizer.prepare_token(query.lower())
 
@@ -186,11 +257,11 @@ def search_in_index(index, header, fname, query):
 
         def read_term(p):
             idx.seek(header[p], 0)
-            return storage.read_str(idx)
+            return storage.read_int(idx), storage.read_str(idx)
 
         l, r = 0, len(header)-1
         m = int(r/2)
-        term = read_term(m)
+        idf, term = read_term(m)
 
         while term != query and l < r:
             if query > term:
@@ -199,14 +270,14 @@ def search_in_index(index, header, fname, query):
                 r = m-1
 
             m = int((l+r) / 2)
-            term = read_term(m)
+            idf, term = read_term(m)
 
         log("Block found for {} sec".format(time.time() - ts))
 
         if l > r:
             res = ResIter(empty=True)
         else:
-            res = ResIter(index=index, fname=fname, pos=idx.tell(), term=query)
+            res = ResIter(index=index, fname=fname, pos=idx.tell(), term=query, idf=idf/1000)
 
     return res
                                                                                            
@@ -319,80 +390,27 @@ def parse_query(s):
 
     return stack
 
-class Res:
-    def __init__(self, data, n=False):
-        self.data = data
-        self.n = n
+import heapq
 
-    @staticmethod
-    def _or(a, b):
-        doc_ids = set(a.keys()) | set(b.keys())
-        data = {}
-        for i in doc_ids:
-            data[i] = list(set(a.get(i, [])) | set(b.get(i, [])))
+class TFIDF_iterator:
+    def __init__(self, iter):
+        h = []
+        r = iter.next()
+        while r:
+            heapq.heappush(h, (r['tf-idf'], r['id'],))
+            r = iter.next()
+            if len(h) > 1000:
+                heapq.heappop(h)
 
-        return data
-    
-    @staticmethod
-    def _and(a, b):
-        doc_ids = set(a.keys()) & set(b.keys())
-        data = {}
-        for i in doc_ids:
-            if i in a and i in b:
-                data[i] = list(set(a[i]) | set(b[i]))
-            elif i in a:
-                data[i] = a[i]
-            else:
-                data[i] = b[i]
+        self.data = [heapq.heappop(h) for i in range(len(h))][::-1]
+        self.i = 0
 
-        return data
-
-    @staticmethod
-    def _sub(a, b):
-        data = {}
-        for doc_id in a.keys():
-            if doc_id in b:
-                data[doc_id] = list(set(a[doc_id]) - set(b[doc_id]))
-            else:
-                data[doc_id] = a[doc_id]
-
-        return data
-
-    def __or__(a, b):
-        if a.n == b.n:
-            return type(a)(type(a)._or(a.data, b.data), n=a.n)
-
-        if a.n:
-            return type(b)(type(b)._sub(b.data, a.data))
-        return type(a)(type(a)._sub(a.data, b.data))
-
-    def __and__(a, b):
-        if a.n == b.n:
-            return type(a)(type(a)._and(a.data, b.data), n=a.n)
-
-        if a.n:
-            return type(b)(type(b)._sub(b.data, a.data))
-        return type(a)(type(a)._sub(a.data, b.data))
-
-    def __neg__(a):
-        return type(a)(a.data, n= not a.n)
-
-    @staticmethod
-    def quote(a, b, d):
-        doc_ids = set(a.data.keys()) & set(b.data.keys())
-        data = {}
-
-        for i in doc_ids:
-            data[i] = []
-            bset = b.data[i]
-            for j in a.data[i]:
-                for k in range(d):
-                    if j+k in bset:
-                        data[i].append(j)
-                        break
-            if not data[i]:
-                del data[i]
-        return Res(data)
+    def next(self):
+        if self.i < len(self.data):
+            self.i += 1
+            d = self.data[self.i-1]
+            return {'id': d[1], 'tf-idf': d[0]} 
+        return None
 
 
 def process_query(s, index, header, fname):

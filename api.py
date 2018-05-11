@@ -28,18 +28,19 @@ CORS(APP)
 cache = {}
 
 def get_doc_descr(doc):
-    doc_id = doc[0]
-    resp = {
-        'id': doc_id,
-    }
+    doc_id = doc['id']
     row = db.select(obj_id=str(doc_id)).fetchone()
     if not row:
         return {}
-    doc = dict(row)
-    resp['title'] = doc.get('title', 'Empty title')
-    resp['url'] = get_page_url(doc_id)
+    row = dict(row)
+    doc['title'] = row.get('title', 'Empty title')
+    doc['url'] = get_page_url(doc_id)
+    try:
+        del doc['lst']
+    except:
+        pass
 
-    return resp
+    return doc
 
 @APP.route('/search/', methods=['POST'])
 def api_search():
@@ -78,8 +79,7 @@ def api_get_results(id, page):
             break
         docs.append(get_doc_descr(doc))
 
-    resp['res'].update_jump_cnt()
-    return dumps({'docs':docs, 'ats':ats / PAGE_SIZE, 'ts':ats, 'jc':resp['res'].jump_cnt, 'js':resp['res'].jump_suc}) + '\n'
+    return dumps({'docs':docs, 'ats':ats / PAGE_SIZE, 'ts':ats}) + '\n'
 
 @APP.after_request
 def after_request(response):

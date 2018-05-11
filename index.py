@@ -1,9 +1,13 @@
 import os
 import shutil
+import math
 from copy import deepcopy
+
 from utils import *
 from searchd import *
 import storage
+
+USE_TFIDF = True
 
 class Index:
     def _index_name(self):
@@ -30,6 +34,7 @@ class Index:
         self.term_cnt = 0
         self.entr_cnt = 0
         self.doc_cnt = 0
+        self.doc_lens = {}
 
         self.threshold = threshold
 
@@ -52,11 +57,11 @@ class Index:
     def __len__(self):
         return storage.int_size * (2 * self.term_cnt + self.doc_cnt + self.entr_cnt) + self.term_size
 
-    def _write_term(self, f, term):
-        f.write(storage.write_str(term))
+    def _write_term(self, f, term, idf):
+        f.write(storage.write_term(term, idf))
 
     def _write_block(self, f, block):
-        b = storage.write_block(block)
+        b = storage.write_block(block, self.doc_lens)
         f.write(b)
         return len(b)
 
@@ -82,7 +87,9 @@ class Index:
                 term, block = i
                 position = index_file.tell()
                 header.append(position)
-                self._write_term(index_file, term)
+                idf = math.log(self.doc_cnt/len(block))
+
+                self._write_term(index_file, term, idf)
                 self._write_block(index_file, block)
 
         self.write_header(header)
@@ -99,11 +106,14 @@ class Index:
         self.term_cnt = 0
         self.entr_cnt = 0
         self.doc_cnt = 0
+        self.doc_lens = {}
 
     def add_doc(self, doc_id, term_dict):
         doc_id = int(doc_id)
+        doc_len = 0
 
         for term in term_dict:
+            doc_len += len(term_dict[term])
             if term not in self.index:
                 self.index[term] = {}
                 self.term_size += len(term)
@@ -111,6 +121,8 @@ class Index:
             self.term_cnt += 1
             self.doc_cnt += 1
             self.entr_cnt += len(term_dict[term])
+
+        self.doc_lens[doc_id] = doc_len
 
         if len(self) > self.threshold:
             self.write_index()
@@ -261,13 +273,10 @@ class Index:
 
     def search(self, query):
         s = parse_query(query)
-        idx = self.indexes[0]
+        iter = ResIter(op='|', children=[process_query(s, self, self.headers[idx], idx) for idx in self.indexes])
         
-        resp = process_query(s, self, self.headers[idx], idx)
-        return resp
+        if not USE_TFIDF:
+            return iter
 
-        for idx in self.indexes:
-            r = process_query(s, self, self.headers[idx], idx)
-            res |= r
+        return TFIDF_iterator(iter)
 
-        return res

@@ -66,7 +66,10 @@ def write_int(a):
 def write_str(s):
     b = bytes(s, encoding='utf8')
     return write_int(len(s)) + struct.Struct('{}s'.format(len(b))).pack(b)
-    
+
+def write_term(s, idf):
+    return write_int(int(1000*idf)) + write_str(s)
+
 def write_list(l):
     if ENABLE_LIST_CMP:
         nl = [l[0]]
@@ -77,13 +80,13 @@ def write_list(l):
     b = b''.join([write_int(i) for i in l])
     return write_int(len(b)) + b
 
-def write_entrance(doc_id, coords):
-    return write_int(doc_id) + write_list(coords)
+def write_entrance(doc_id, doc_len, coords):
+    return write_int(doc_id) + write_int(doc_len) + write_int(len(coords)) + write_list(coords)
 
 def write_jump(offset):
     return write_int_raw(offset)
 
-def write_block(block):
+def write_block(block, doc_lens):
     l = len(block)
     p, o = get_jump_op(l)   
 
@@ -97,7 +100,7 @@ def write_block(block):
         doc_id = doc_ids[i]
         entrance = list(block[doc_id])
         entrance.sort()
-        entrances.append(write_entrance(doc_id, entrance))
+        entrances.append(write_entrance(doc_id, doc_lens[doc_id], entrance))
         sizes.append(sizes[-1] + len(entrances[-1]))
         
     sizes = sizes[1:]
@@ -169,5 +172,6 @@ def skip_list(f):
 
 if __name__ == '__main__':
     sample = {i:[1,2,8] for i in range(10)}
+    doc_lens = {i: 10 for i in range(10)}
     print("Some test, convert {} to bytes".format(sample))
-    print("Result:", write_block(sample))
+    print("Result:", write_block(sample, doc_lens))
