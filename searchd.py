@@ -3,10 +3,17 @@ import re
 import time
 import storage
 import tokenizer
+import math
 
 RES_TYPE_OP = 1
 RES_TYPE_RES = 2
 RES_TYPE_EMPTY = 3
+
+def TF_F(x):
+    thld = 0.2
+    if x < thld:
+        return x
+    return thld + (x-thld)**2
 
 class FakeRes():
     def __init__(self, d):
@@ -29,6 +36,7 @@ class ResIter:
         self.children = children
         self.index = index
         self.read_list = read_list
+        self.backup = None
 
         self.idf = idf
 
@@ -125,8 +133,8 @@ class ResIter:
                             r1, r2 = ch1.next(), ch2.next()
                             continue
                         elif r1['id'] < r2['id']:
-                            r2.revert()
-                            return r1
+                            ch2.revert()
+                            return {'id': r1['id'], 'tf-idf': r1['tf-idf']+r2['tf-idf'], 'lst': []}
                         else:
                             if ch2.can_jump():
                                 j = ch2.jump()
@@ -154,10 +162,10 @@ class ResIter:
                             if r1['id'] == r2['id']:
                                 return {'id': r1['id'], 'tf-idf': r1['tf-idf']+r2['tf-idf'], 'lst': []}
                             elif r1['id'] < r2['id']:
-                                r2.revert()
+                                ch2.revert()
                                 return r1
                             else:
-                                r1.revert()
+                                ch1.revert()
                                 return r2
                     else:
                         if ch1.neg:
@@ -179,7 +187,7 @@ class ResIter:
                                     r1 = ch2.unjump()
                                 r1 = ch2.next()
                             else:
-                                r1.revert()
+                                ch1.revert()
                                 return r2
             if self.op == '!':
                 self.neg = True
@@ -188,8 +196,10 @@ class ResIter:
                 n, d = map(int, self.op[1:].split('_'))
                 for i in self.children:
                     i.read_list = True
-                doc_id, lst = self.quote(self.children, d)
-                return {'id': doc_id, 'lst': lst, 'tf-idf': 0}
+                r = self.quote(self.children, d)
+                if not r:
+                    return None
+                return {'id': r[0], 'lst': r[1], 'tf-idf': n*n*len(r[1])*0.012}
         else:
             self.save()
             with open(self.index._index_file(fname=self.fname), 'br') as fidx:
@@ -199,6 +209,7 @@ class ResIter:
                     doc_len = storage.read_int(fidx)
                     rate = storage.read_int(fidx)
                     tf = rate / doc_len
+                    tf = TF_F(tf)
                     if self.read_list:
                         lst = storage.read_list(fidx)
                     else:
@@ -243,7 +254,8 @@ class ResIter:
         self.backup = (self.current_i, self.current_pos)
 
     def revert(self):
-        self.current_i, self.current_pos = self.backup
+        if self.backup:
+            self.current_i, self.current_pos = self.backup
 
 def _prepare_word(query):
     return tokenizer.prepare_token(query.lower())
