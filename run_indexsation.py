@@ -32,20 +32,29 @@ def get_ids():
 
 log("Indexsation started")
 
-index = Index(dir='../data', threshold=5*100*1000*1000)
+index = Index(dir='../data', threshold=4*100*1000*1000)
+tindex = Index(dir='../data', threshold=4*100*1000*1000, prefix='ttlidx')
 
 start_ts = ctime()
 total_len = 0
 total_cnt = 0
 
 for doc in get_ids():
-    total_cnt +=1
-    total_len += len(doc.get('text', ''))
-    index.add_doc(doc['id'], tokenizer.extract_token_positions(doc))
+    doc_id = doc['id']
+    text = doc.get('text', '')
+    title = doc.get('title')
+
+    total_len += len(text) + len(title)
+    total_cnt += 1
+
+    index.add_doc(doc_id, tokenizer.extract_token_positions(text))
+    tindex.add_doc(doc_id, tokenizer.extract_token_positions(title))
+
     if total_cnt % step == 0:
         log("{}/{} documents parsed".format(total_cnt, LIMIT))
 
 index.write_index()
+tindex.write_index()
 
 total_time = ctime() - start_ts
 

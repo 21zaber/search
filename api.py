@@ -9,6 +9,7 @@ import time
 from wikidb import DB
 from index import Index
 from utils import get_page_url, rand_str, log 
+from searchd import ResIter
 
 PAGE_SIZE = 10
 ROOT_DIR = '../data'
@@ -17,15 +18,24 @@ log("DB initialization")
 db = DB()
 
 log("Index initialization, base directory {}".format(ROOT_DIR))
-index = Index(dir=ROOT_DIR)
+index = Index(dir=ROOT_DIR, prefix='111')
 index.update_index_list()
 index.read_headers()
+
+tindex = Index(dir=ROOT_DIR, prefix='ttlidx', coef=10)
+tindex.update_index_list()
+tindex.read_headers()
 
 log("API initialization")
 APP = Flask(__name__)
 CORS(APP)
 
 cache = {}
+
+def search(query):
+    #r = index.search(query)
+    rt = tindex.search(query)
+    return rt#ResIter(op='|', children=[r, rt, ResIter(empty=True)])
 
 def get_doc_descr(doc):
     doc_id = doc['id']
@@ -50,7 +60,7 @@ def api_search():
 
     query = data.get('query', '')
 
-    res = index.search(query)
+    res = search(query)
     ts = time.time() - ts
     log("Query searched for {} sec".format(ts))
 

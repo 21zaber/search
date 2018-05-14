@@ -11,7 +11,7 @@ USE_TFIDF = True
 
 class Index:
     def _index_name(self):
-        return 'index_{}'.format(str(self.current_idx).rjust(3, '0'))
+        return '{}_{}'.format(self.prefix_name, str(self.current_idx).rjust(3, '0'))
 
     def _header_file(self, fname=None):
         if not fname:
@@ -23,7 +23,9 @@ class Index:
             return os.path.join(self.dir, '{}.id'.format(self._index_name()))
         return '{}.id'.format(fname)
 
-    def __init__(self, dir='', threshold=1000*1000):
+    def __init__(self, dir='', threshold=1000*1000, prefix='index', coef=1):
+        self.coef = coef
+        self.prefix_name = prefix
         self.dir = dir
         self.current_idx = 0
         self.headers = {}
@@ -46,7 +48,7 @@ class Index:
     def update_index_list(self):
         files = os.listdir(self.dir)
         files = {i[:-3] for i in files if i.endswith('.id')}
-        self.indexes = [os.path.join(self.dir, f) for f in files]
+        self.indexes = [os.path.join(self.dir, f) for f in files if f.startswith(self.prefix_name)]
         log("Index list updated: {}".format(', '.join(self.indexes)))
 
     def read_headers(self):
@@ -273,7 +275,7 @@ class Index:
 
     def search(self, query):
         s = parse_query(query)
-        iter = ResIter(op='|', children=[process_query(s, self, self.headers[idx], idx) for idx in self.indexes])
+        iter = ResIter(op='|', coef=self.coef, children=[process_query(s, self, self.headers[idx], idx) for idx in self.indexes])
         
         if not USE_TFIDF:
             return iter

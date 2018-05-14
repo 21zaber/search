@@ -27,7 +27,7 @@ class FakeRes():
         return None
 
 class ResIter:
-    def __init__(self, index=None, op=None, fname=None, pos=0, children=None, empty=False, term=None, read_list=False, idf=None):
+    def __init__(self, index=None, op=None, fname=None, pos=0, children=None, empty=False, term=None, read_list=False, idf=None, coef=1):
         self.term = term
         self.fname = fname
         self.position = pos
@@ -39,6 +39,7 @@ class ResIter:
         self.backup = None
 
         self.idf = idf
+        self.coef = coef
 
         self.jump_cnt = 0
         self.jump_suc = 0
@@ -209,7 +210,7 @@ class ResIter:
                     doc_len = storage.read_int(fidx)
                     rate = storage.read_int(fidx)
                     tf = rate / doc_len
-                    tf = TF_F(tf)
+                    tf = TF_F(tf) * self.coef
                     if self.read_list:
                         lst = storage.read_list(fidx)
                     else:

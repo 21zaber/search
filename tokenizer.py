@@ -21,8 +21,8 @@ def prepare_token(token):
     return stemed
     return token
 
-def extract_token_list(obj):
-    text = obj.get('text', '')
+def extract_token_list(data):
+    text = data
 
     #prepare text
     text = re.sub(wsre, ' ', text)   
@@ -69,8 +69,8 @@ def get_statistics(obj_generator):
 
     for obj in obj_generator():
         count += 1
-        total_len += len(dict(obj)['text'])
-        r = extract_token_rate(dict(obj))
+        total_len += len(data)
+        r = extract_token_rate(data)
         for k in r:
             rate[k] += r[k]
 
