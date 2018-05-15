@@ -9,9 +9,10 @@
         console.log(data);
         var url = data.url;
         var title = data.title;
+        var snippet = data.snippet;
 
         $("#result-list").append(
-                "<li class ='elem' ><a class='result' href='" + url + "'> " + title + "</li>");
+                "<li class ='elem' ><a class='result' href='" + url + "'> " + title + "</a><small><br>" + snippet + "</small></li>");
     }
 
     function get_results(search_id, pg){
