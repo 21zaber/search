@@ -85,7 +85,6 @@ def api_get_results(id, page):
     for i in range(PAGE_SIZE):
         ts = time.time()
         doc = resp['res'].next()
-        print(doc)
         ats += time.time() - ts
         if not doc:
             break

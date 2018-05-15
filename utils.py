@@ -81,7 +81,7 @@ def extract_snippet(text, q):
     i = 0
     while i < len(text):
         if text[i] in stop_sym:
-            while text[i] in stop_sym:
+            while i < len(text) and text[i] in stop_sym:
                 term += text[i]
                 i += 1
 
@@ -105,7 +105,7 @@ def extract_snippet(text, q):
 
     spt = ''.join(ans)
     if spt:
-        return SNIPPET_FMTSTR.format(spt.sprip())
+        return SNIPPET_FMTSTR.format(spt.strip())
     return ''
 
 

@@ -39,6 +39,9 @@ class ResIter:
         self.backup = None
 
         self.idf = idf
+        if self.idf:
+            self.idf /= math.log(10)
+
         self.coef = coef
 
         self.jump_cnt = 0
@@ -290,6 +293,7 @@ def search_in_index(index, header, fname, query):
         if l > r:
             res = ResIter(empty=True)
         else:
+            print("Term: {}, idf: {}".format(query, idf/1000))
             res = ResIter(index=index, fname=fname, pos=idx.tell(), term=query, idf=idf/1000)
 
     return res
@@ -432,18 +436,36 @@ def process_query(s, index, header, fname):
 
     ops = {'!', '&', '|', '/'}
 
+    #indistinct check
+    ind = True
+    for i in s:
+        if i in ops and i != '&':
+            ind = False
+            break
+
+    if ind:
+        terms = [search_in_index(index, header, fname, i) for i in s if i[0] not in ops]
+        terms.sort(key=lambda x: x.idf)
+        terms = [i for i in terms if i.idf > 3]
+        log('Indistinct query:', ['{}:{}'.format(i.term, i.idf) for i in terms])
+
+        iter = terms[0]
+        for i in terms[1:]:
+            iter = ResIter(op='|', children=[iter, i])
+        return iter
+
     for i in s:
         if i[0] not in ops:
             stack.append(search_in_index(index, header, fname, i))
             continue
 
-        if i == '!':
-            stack[-1] = ResIter(op='!', children=[stack[-1]])
-            continue
-        
-        if i == '|':
+        if ind or i == '|':
             stack[-2] = ResIter(op='|', children=[stack[-1], stack[-2]])
             del stack[-1]
+            continue
+
+        if i == '!':
+            stack[-1] = ResIter(op='!', children=[stack[-1]])
             continue
 
         if i == '&':
