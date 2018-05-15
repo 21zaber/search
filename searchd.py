@@ -107,7 +107,7 @@ class ResIter:
                     self.neg = ch1.neg
                     while r1 and r2:
                         if r1['id'] == r2['id']:
-                            return {'id': r1['id'], 'tf-idf': r1['tf-idf']+r2['tf-idf'], 'lst': []}
+                            return {'id': r1['id'], 'tf-idf': r1['tf-idf']+r2['tf-idf'], 'lst': [], 'q':r1['q']+r2['q']}
                         elif r1['id'] < r2['id']:
                             if ch1.can_jump():
                                 j = ch1.jump()
@@ -135,7 +135,7 @@ class ResIter:
                             continue
                         elif r1['id'] < r2['id']:
                             ch2.revert()
-                            return {'id': r1['id'], 'tf-idf': r1['tf-idf']+r2['tf-idf'], 'lst': []}
+                            return {'id': r1['id'], 'tf-idf': r1['tf-idf']+r2['tf-idf'], 'lst': [], 'q':r1['q']}
                         else:
                             if ch2.can_jump():
                                 j = ch2.jump()
@@ -161,7 +161,7 @@ class ResIter:
                             if not r2: return r1
 
                             if r1['id'] == r2['id']:
-                                return {'id': r1['id'], 'tf-idf': r1['tf-idf']+r2['tf-idf'], 'lst': []}
+                                return {'id': r1['id'], 'tf-idf': r1['tf-idf']+r2['tf-idf'], 'lst': [], 'q': r1['q']+r2['q']}
                             elif r1['id'] < r2['id']:
                                 ch2.revert()
                                 return r1
@@ -200,7 +200,7 @@ class ResIter:
                 r = self.quote(self.children, d)
                 if not r:
                     return None
-                return {'id': r[0], 'lst': r[1], 'tf-idf': n*n*len(r[1])*0.012}
+                return {'id': r[0], 'lst': r[1], 'tf-idf': n*n*len(r[1])*0.012, 'q': [i.term for i in self.children]}
         else:
             self.save()
             with open(self.index._index_file(fname=self.fname), 'br') as fidx:
@@ -221,7 +221,7 @@ class ResIter:
                         self.jump_pos = None
                     self.current_pos = fidx.tell()
                     self.current_i += 1
-                    return {'id': doc, 'tf-idf': tf*self.idf, 'lst': lst}
+                    return {'id': doc, 'tf-idf': tf*self.idf, 'lst': lst, 'q':[self.term]}
 
         return None
 
@@ -410,7 +410,7 @@ class TFIDF_iterator:
         h = []
         r = iter.next()
         while r:
-            heapq.heappush(h, (r['tf-idf'], r['id'],))
+            heapq.heappush(h, (r['tf-idf'], r['id'], r['q']))
             r = iter.next()
             if len(h) > 1000:
                 heapq.heappop(h)
@@ -422,7 +422,7 @@ class TFIDF_iterator:
         if self.i < len(self.data):
             self.i += 1
             d = self.data[self.i-1]
-            return {'id': d[1], 'tf-idf': d[0]} 
+            return {'id': d[1], 'tf-idf': d[0], 'q':d[2]} 
         return None
 
 

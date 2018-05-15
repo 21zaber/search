@@ -8,7 +8,7 @@ import time
 
 from wikidb import DB
 from index import Index
-from utils import get_page_url, rand_str, log 
+from utils import get_page_url, rand_str, log, extract_snippet 
 from searchd import ResIter
 
 PAGE_SIZE = 10
@@ -18,7 +18,7 @@ log("DB initialization")
 db = DB()
 
 log("Index initialization, base directory {}".format(ROOT_DIR))
-index = Index(dir=ROOT_DIR, prefix='111')
+index = Index(dir=ROOT_DIR, prefix='index')
 index.update_index_list()
 index.read_headers()
 
@@ -33,9 +33,9 @@ CORS(APP)
 cache = {}
 
 def search(query):
-    #r = index.search(query)
+    r = index.search(query)
     rt = tindex.search(query)
-    return rt#ResIter(op='|', children=[r, rt, ResIter(empty=True)])
+    return ResIter(op='|', children=[r, rt, ResIter(empty=True)])
 
 def get_doc_descr(doc):
     doc_id = doc['id']
@@ -43,6 +43,7 @@ def get_doc_descr(doc):
     if not row:
         return {}
     row = dict(row)
+    doc['snippet'] = extract_snippet(row.get('text', ''), doc['q'])
     doc['title'] = row.get('title', 'Empty title')
     doc['url'] = get_page_url(doc_id)
     try:
@@ -84,6 +85,7 @@ def api_get_results(id, page):
     for i in range(PAGE_SIZE):
         ts = time.time()
         doc = resp['res'].next()
+        print(doc)
         ats += time.time() - ts
         if not doc:
             break

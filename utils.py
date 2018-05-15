@@ -57,3 +57,55 @@ def get_page_url(page_id):
 def rand_str(n):                                                                           
     return ''.join([random.choice(string.ascii_letters + string.digits) for i in range(n)])
 
+
+SNIPPET_MAX_LEN = 200
+SNIPPET_FMTSTR = '...{}...'
+stop_sym = set(' .!?,')
+
+def extract_snippet(text, q):
+    l, r = 0, 1
+    curlen = 0
+    curans = 0
+    spt = []
+    term = ''
+
+    ans = []
+    mx = 0
+
+    def check_term(term):
+        for i in q:
+            if term.startswith(i):
+                return True
+        return False
+           
+    i = 0
+    while i < len(text):
+        if text[i] in stop_sym:
+            while text[i] in stop_sym:
+                term += text[i]
+                i += 1
+
+            curlen += len(term)
+            spt.append(term)
+            if curlen > SNIPPET_MAX_LEN:
+                if check_term(spt[0]):
+                    curans -= 1
+                spt = spt[1:]
+            if check_term(term):
+                curans += 1
+
+            if mx <= curans:
+                mx = len(ans)-1
+                ans = spt[::]
+
+            term = ''
+        else:
+            term += text[i]
+            i += 1
+
+    spt = ''.join(ans)
+    if spt:
+        return SNIPPET_FMTSTR.format(spt.sprip())
+    return ''
+
+
