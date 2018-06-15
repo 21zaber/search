@@ -30,36 +30,37 @@ def get_ids():
                 f.write(obj['id']+'\n')
                 yield dict(obj)
 
-log("Indexsation started")
+if __name__ == '__main__':
+    log("Indexsation started")
 
-index = Index(dir='../data', threshold=4*100*1000*1000)
-tindex = Index(dir='../data', threshold=4*100*1000*1000, prefix='ttlidx')
+    index = Index(dir='../data', threshold=4*100*1000*1000)
+    tindex = Index(dir='../data', threshold=4*100*1000*1000, prefix='ttlidx')
 
-start_ts = ctime()
-total_len = 0
-total_cnt = 0
+    start_ts = ctime()
+    total_len = 0
+    total_cnt = 0
 
-for doc in get_ids():
-    doc_id = doc['id']
-    text = doc.get('text', '')
-    title = doc.get('title')
+    for doc in get_ids():
+        doc_id = doc['id']
+        text = doc.get('text', '')
+        title = doc.get('title')
 
-    total_len += len(text) + len(title)
-    total_cnt += 1
+        total_len += len(text) + len(title)
+        total_cnt += 1
 
-    index.add_doc(doc_id, tokenizer.extract_token_positions(text))
-    tindex.add_doc(doc_id, tokenizer.extract_token_positions(title))
+        index.add_doc(doc_id, tokenizer.extract_token_positions(text))
+        tindex.add_doc(doc_id, tokenizer.extract_token_positions(title))
 
-    if total_cnt % step == 0:
-        log("{}/{} documents parsed".format(total_cnt, LIMIT))
+        if total_cnt % step == 0:
+            log("{}/{} documents parsed".format(total_cnt, LIMIT))
 
-index.write_index()
-tindex.write_index()
+    index.write_index()
+    tindex.write_index()
 
-total_time = ctime() - start_ts
+    total_time = ctime() - start_ts
 
-print('Total time:', total_time)
-print('Total data:', format_memory(total_len))
-print('Total docs:', total_cnt)
-print('Average time:', total_time / total_cnt)
-print('Speed:', format_memory(total_len / total_time, sufix='b/sec'))
+    print('Total time:', total_time)
+    print('Total data:', format_memory(total_len))
+    print('Total docs:', total_cnt)
+    print('Average time:', total_time / total_cnt)
+    print('Speed:', format_memory(total_len / total_time, sufix='b/sec'))
