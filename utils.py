@@ -103,6 +103,11 @@ def extract_snippet(text, q):
             term += text[i]
             i += 1
 
+   #print(text)
+   #print(ans)
+   #print(mx)
+   #print()
+
     spt = ''.join(ans)
     if spt:
         return SNIPPET_FMTSTR.format(spt.strip())

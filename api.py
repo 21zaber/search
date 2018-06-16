@@ -11,7 +11,7 @@ from index import Index
 from utils import get_page_url, rand_str, log, extract_snippet 
 from searchd import ResIter
 
-PAGE_SIZE = 10
+PAGE_SIZE = 50
 ROOT_DIR = '../data'
 
 log("DB initialization")
@@ -34,6 +34,7 @@ cache = {}
 
 def search(query):
     r = index.search(query)
+   #return r
     rt = tindex.search(query)
     return ResIter(op='|', children=[r, rt, ResIter(empty=True)])
 
@@ -45,13 +46,18 @@ def get_doc_descr(doc):
     row = dict(row)
     doc['snippet'] = extract_snippet(row.get('text', ''), doc['q'])
     doc['title'] = row.get('title', 'Empty title')
-    doc['url'] = get_page_url(doc_id)
+    #doc['url'] = get_page_url(doc_id)
     try:
         del doc['lst']
     except:
         pass
 
     return doc
+
+def check_doc(doc):
+    if doc.get('title').startswith('Wikipedia:'):
+        return False
+    return True
 
 @APP.route('/search/', methods=['POST'])
 def api_search():
@@ -88,7 +94,10 @@ def api_get_results(id, page):
         ats += time.time() - ts
         if not doc:
             break
-        docs.append(get_doc_descr(doc))
+        doc = get_doc_descr(doc)
+        if not check_doc(doc):
+            continue
+        docs.append(doc)
 
     return dumps({'docs':docs, 'ats':ats / PAGE_SIZE, 'ts':ats}) + '\n'
 

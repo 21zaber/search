@@ -27,7 +27,7 @@ class FakeRes():
         return None
 
 class ResIter:
-    def __init__(self, index=None, op=None, fname=None, pos=0, children=None, empty=False, term=None, read_list=False, idf=None, coef=1):
+    def __init__(self, index=None, op=None, doc_cnt=None, fname=None, pos=0, children=None, empty=False, term=None, read_list=False, coef=1):
         self.term = term
         self.fname = fname
         self.position = pos
@@ -37,10 +37,8 @@ class ResIter:
         self.index = index
         self.read_list = read_list
         self.backup = None
+        self.doc_cnt = doc_cnt
 
-        self.idf = idf
-        if self.idf:
-            self.idf /= math.log(10)
 
         self.coef = coef
 
@@ -65,6 +63,7 @@ class ResIter:
                 self.current_i = 0
 
                 self.jump_p, self.jump_o = storage.get_jump_op(self.length)
+                self.idf = math.log(self.doc_cnt/self.length)
 
     @staticmethod
     def _quote(a, b, d):
@@ -212,7 +211,7 @@ class ResIter:
                     doc = storage.read_int(fidx)
                     doc_len = storage.read_int(fidx)
                     rate = storage.read_int(fidx)
-                    tf = rate / doc_len
+                    tf = rate / min(100, doc_len)
                     tf = TF_F(tf) * self.coef
                     if self.read_list:
                         lst = storage.read_list(fidx)
@@ -264,20 +263,23 @@ class ResIter:
 def _prepare_word(query):
     return tokenizer.prepare_token(query.lower())
 
-def search_in_index(index, header, fname, query):
+def search_in_index(index, header, fname, query,doc_cnt):
     query = _prepare_word(query)
     log('Search for "{}" in {}'.format(query, fname))
     ts = time.time()
+
+    if len(query) < 3:
+        return ResIter(empty=True)
 
     with open(index._index_file(fname=fname), 'br') as idx:
 
         def read_term(p):
             idx.seek(header[p], 0)
-            return storage.read_int(idx), storage.read_str(idx)
+            return storage.read_str(idx)
 
         l, r = 0, len(header)-1
         m = int(r/2)
-        idf, term = read_term(m)
+        term = read_term(m)
 
         while term != query and l < r:
             if query > term:
@@ -286,15 +288,15 @@ def search_in_index(index, header, fname, query):
                 r = m-1
 
             m = int((l+r) / 2)
-            idf, term = read_term(m)
+            term = read_term(m)
 
         log("Block found for {} sec".format(time.time() - ts))
 
         if l > r:
             res = ResIter(empty=True)
         else:
-            print("Term: {}, idf: {}".format(query, idf/1000))
-            res = ResIter(index=index, fname=fname, pos=idx.tell(), term=query, idf=idf/1000)
+            print("Term: {}".format(query))
+            res = ResIter(index=index, fname=fname, pos=idx.tell(), term=query, doc_cnt=doc_cnt)
 
     return res
                                                                                            
@@ -319,6 +321,10 @@ def parse_query(s):
             else:
                 break
             l += 1
+
+       #if len(q) < 3:
+       #    return [], l
+
         return [q], l
 
     def query(s, stop=False, debug=False):
@@ -413,6 +419,7 @@ class TFIDF_iterator:
     def __init__(self, iter):
         h = []
         r = iter.next()
+        self.neg = False
         while r:
             heapq.heappush(h, (r['tf-idf'], r['id'], r['q']))
             r = iter.next()
@@ -430,7 +437,7 @@ class TFIDF_iterator:
         return None
 
 
-def process_query(s, index, header, fname):
+def process_query(s, index, header, fname, doc_cnt=None):
     log("Converted query:", s)
     stack = []
 
@@ -444,22 +451,23 @@ def process_query(s, index, header, fname):
             break
 
     if ind:
-        terms = [search_in_index(index, header, fname, i) for i in s if i[0] not in ops]
+        terms = [search_in_index(index, header, fname, i, doc_cnt) for i in s if i[0] not in ops]
         terms.sort(key=lambda x: x.idf)
-        terms = [i for i in terms if i.idf > 3]
+        terms = [i for i in terms if i.idf > 2.6]
         log('Indistinct query:', ['{}:{}'.format(i.term, i.idf) for i in terms])
 
-        iter = terms[0]
-        for i in terms[1:]:
-            iter = ResIter(op='|', children=[iter, i])
-        return iter
+        if len(terms) > 2:
+            iter = terms[0]
+            for i in terms[1:]:
+                iter = ResIter(op='&', children=[iter, i])
+            return iter
 
     for i in s:
         if i[0] not in ops:
-            stack.append(search_in_index(index, header, fname, i))
+            stack.append(search_in_index(index, header, fname, i, doc_cnt))
             continue
 
-        if ind or i == '|':
+        if i == '|':
             stack[-2] = ResIter(op='|', children=[stack[-1], stack[-2]])
             del stack[-1]
             continue

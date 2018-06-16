@@ -6,6 +6,7 @@ from utils import format_memory, format_time, log
 from stemmer import Stemmer
 
 st = Stemmer(method='wordnet')
+#st = Stemmer()
 
 MIN_TOKEN_LENGTH = 3
 

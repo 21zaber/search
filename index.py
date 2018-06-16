@@ -47,7 +47,7 @@ class Index:
 
     def update_index_list(self):
         files = os.listdir(self.dir)
-        files = {i[:-3] for i in files if i.endswith('.id')}
+        files = list({i[:-3] for i in files if i.endswith('.id')})
         self.indexes = [os.path.join(self.dir, f) for f in files if f.startswith(self.prefix_name)]
         log("Index list updated: {}".format(', '.join(self.indexes)))
 
@@ -59,8 +59,8 @@ class Index:
     def __len__(self):
         return storage.int_size * (2 * self.term_cnt + self.doc_cnt + self.entr_cnt) + self.term_size
 
-    def _write_term(self, f, term, idf):
-        f.write(storage.write_term(term, idf))
+    def _write_term(self, f, term):
+        f.write(storage.write_term(term))
 
     def _write_block(self, f, block):
         b = storage.write_block(block, self.doc_lens)
@@ -70,10 +70,11 @@ class Index:
     def write_header(self, header):
         with open(self._header_file(), 'w+b') as f:
             f.write(storage.write_list(header))
+            f.write(storage.write_int(self.doc_cnt))
 
     def read_header(self, fname):
         with open(self._header_file(fname=fname), 'br') as f:
-            return storage.read_list(f)
+            return (storage.read_list(f), storage.read_int(f), )
 
     def write_index(self):
         with open(self._index_file(), 'w+b') as index_file:
@@ -89,9 +90,8 @@ class Index:
                 term, block = i
                 position = index_file.tell()
                 header.append(position)
-                idf = math.log(self.doc_cnt/len(block))
 
-                self._write_term(index_file, term, idf)
+                self._write_term(index_file, term)
                 self._write_block(index_file, block)
 
         self.write_header(header)
@@ -275,8 +275,17 @@ class Index:
 
     def search(self, query):
         s = parse_query(query)
-        iter = ResIter(op='|', coef=self.coef, children=[process_query(s, self, self.headers[idx], idx) for idx in self.indexes])
-        
+#        iter = ResIter(op='|', coef=self.coef, children=[process_query(s, self, self.headers[idx], idx) for idx in self.indexes])
+
+        if len(self.indexes) == 0:
+            return ResIter(empty=True)
+        if len(self.indexes) > 0:
+            idx = self.indexes[0]
+            iter = process_query(s, self, self.headers[idx][0], idx, doc_cnt=self.headers[idx][1])        
+
+            for idx in self.indexes[1:]:
+                iter = ResIter(op='|', coef=self.coef, children=[iter, process_query(s, self, self.headers[idx][0], idx, doc_cnt=self.headers[idx][1])])
+                
         if not USE_TFIDF:
             return iter
 

@@ -67,8 +67,8 @@ def write_str(s):
     b = bytes(s, encoding='utf8')
     return write_int(len(s)) + struct.Struct('{}s'.format(len(b))).pack(b)
 
-def write_term(s, idf):
-    return write_int(int(1000*idf)) + write_str(s)
+def write_term(s):
+    return write_str(s)
 
 def write_list(l):
     if ENABLE_LIST_CMP:
